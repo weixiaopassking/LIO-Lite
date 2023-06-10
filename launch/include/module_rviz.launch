@@ -1,8 +1,0 @@
-<launch>
-
-    <arg name="project" default="lio_lite"/>
-
-    <!--- Run Rviz-->
-    <node pkg="rviz" type="rviz" name="$(arg project)_rviz" args="-d $(find lio_lite)/launch/include/config/rviz.rviz" />
-
-</launch>

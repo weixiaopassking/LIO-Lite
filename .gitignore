@@ -1,1 +1,3 @@
-maps/
+build/
+devel/
+.catkin_workspace
