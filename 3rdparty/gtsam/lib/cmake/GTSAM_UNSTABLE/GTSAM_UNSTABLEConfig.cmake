@@ -6,7 +6,7 @@
 get_filename_component(OUR_CMAKE_DIR "${CMAKE_CURRENT_LIST_FILE}" PATH)
 if(EXISTS "${OUR_CMAKE_DIR}/CMakeCache.txt")
   # In build tree
-  set(GTSAM_UNSTABLE_INCLUDE_DIR /home/dasheng/UGV/RoboMindX/gtsam CACHE PATH "GTSAM_UNSTABLE include directory")
+  set(GTSAM_UNSTABLE_INCLUDE_DIR /home/pjlab/Envs/gtsam CACHE PATH "GTSAM_UNSTABLE include directory")
 else()
   # Find installed library
   set(GTSAM_UNSTABLE_INCLUDE_DIR "${OUR_CMAKE_DIR}/../../../include" CACHE PATH "GTSAM_UNSTABLE include directory")
