@@ -9,6 +9,12 @@
 #include <condition_variable>
 #include <thread>
 
+#include <mutex>
+#include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/PoseWithCovarianceStamped.h>
+#include <pcl/registration/icp.h>
+#include <pcl/registration/ndt.h>
+
 #include "imu_processing.hpp"
 #include "ivox3d/ivox3d.h"
 #include "options.h"
@@ -52,6 +58,7 @@ class LaserMapping {
 
     /// interface of mtk, customized obseravtion model
     void ObsModel(state_ikfom &s, esekfom::dyn_share_datastruct<double> &ekfom_data);
+    void ObsModel_location(state_ikfom &s, esekfom::dyn_share_datastruct<double> &ekfom_data);
 
     ////////////////////////////// debug save / show ////////////////////////////////////////////////////////////////
     void PublishPath(const ros::Publisher pub_path);
@@ -62,6 +69,25 @@ class LaserMapping {
     void Savetrajectory(const std::string &traj_file);
 
     void Finish();
+
+    // location relative
+  public:
+    void Load_map();
+    void Run_location();
+  private:
+    void initialpose_callback(const geometry_msgs::PoseWithCovarianceStampedConstPtr& pose_msg);
+    void initialpose();
+    ros::Subscriber sub_init_pose_;
+    ros::Publisher pub_global_map_;
+    ros::Publisher pub_msg2uav_;
+    bool flg_islocation_mode_ = false;
+    bool flg_location_inited_ = false;
+    bool flg_get_init_guess_ = false;
+    PointCloudType::Ptr global_map_{new PointCloudType()};
+    Eigen::Vector3d init_translation_;  
+    Eigen::Quaterniond init_rotation_;
+    std::mutex init_lock_;
+
 
    private:
     template <typename T>

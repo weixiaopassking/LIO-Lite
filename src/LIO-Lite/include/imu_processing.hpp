@@ -316,6 +316,6 @@ void ImuProcess::Process(const common::MeasureGroup &meas, esekfom::esekf<state_
 
     Timer::Evaluate([&, this]() { UndistortPcl(meas, kf_state, *cur_pcl_un_); }, "Undistort Pcl");
 }
-}  // namespace lio_lite
+}  // namespace lio_liteg
 
 #endif

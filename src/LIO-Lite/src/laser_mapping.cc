@@ -17,11 +17,18 @@ bool LaserMapping::InitROS(ros::NodeHandle &nh) {
 
     // esekf init
     std::vector<double> epsi(23, 0.001);
+    if(!flg_islocation_mode_){
+        kf_.init_dyn_share(
+            get_f, df_dx, df_dw,
+            [this](state_ikfom &s, esekfom::dyn_share_datastruct<double> &ekfom_data) { ObsModel(s, ekfom_data); },
+            options::NUM_MAX_ITERATIONS, epsi.data());
+        return true;
+    }
+    
     kf_.init_dyn_share(
-        get_f, df_dx, df_dw,
-        [this](state_ikfom &s, esekfom::dyn_share_datastruct<double> &ekfom_data) { ObsModel(s, ekfom_data); },
-        options::NUM_MAX_ITERATIONS, epsi.data());
-
+            get_f, df_dx, df_dw,
+            [this](state_ikfom &s, esekfom::dyn_share_datastruct<double> &ekfom_data) { ObsModel_location(s, ekfom_data); },
+            options::NUM_MAX_ITERATIONS, epsi.data());
     return true;
 }
 
@@ -58,6 +65,7 @@ bool LaserMapping::LoadParams(ros::NodeHandle &nh) {
     common::V3D lidar_T_wrt_IMU;
     common::M3D lidar_R_wrt_IMU;
 
+    nh.param<bool>("location_mode", flg_islocation_mode_, false);
     nh.param<bool>("path_save_en", path_save_en_, true);
     nh.param<bool>("publish/path_publish_en", path_pub_en_, true);
     nh.param<bool>("publish/scan_publish_en", scan_pub_en_, true);
@@ -122,7 +130,7 @@ bool LaserMapping::LoadParams(ros::NodeHandle &nh) {
     }
 
     path_.header.stamp = ros::Time::now();
-    path_.header.frame_id = "camera_init";
+    path_.header.frame_id = "map";
 
     voxel_scan_.setLeafSize(filter_size_surf_min, filter_size_surf_min, filter_size_surf_min);
 
@@ -247,13 +255,19 @@ void LaserMapping::SubAndPubToROS(ros::NodeHandle &nh) {
 
     // ROS publisher init
     path_.header.stamp = ros::Time::now();
-    path_.header.frame_id = "camera_init";
+    path_.header.frame_id = "map";
 
-    pub_laser_cloud_world_ = nh.advertise<sensor_msgs::PointCloud2>("/cloud_registered", 100000);
-    pub_laser_cloud_body_ = nh.advertise<sensor_msgs::PointCloud2>("/cloud_registered_body", 100000);
-    pub_laser_cloud_effect_world_ = nh.advertise<sensor_msgs::PointCloud2>("/cloud_registered_effect_world", 100000);
-    pub_odom_aft_mapped_ = nh.advertise<nav_msgs::Odometry>("/Odometry", 100000);
-    pub_path_ = nh.advertise<nav_msgs::Path>("/path", 100000);
+    pub_laser_cloud_world_ = nh.advertise<sensor_msgs::PointCloud2>("/cloud_registered", 10);
+    pub_laser_cloud_body_ = nh.advertise<sensor_msgs::PointCloud2>("/cloud_registered_body", 1000);
+    pub_laser_cloud_effect_world_ = nh.advertise<sensor_msgs::PointCloud2>("/cloud_registered_effect_world", 10);
+    pub_odom_aft_mapped_ = nh.advertise<nav_msgs::Odometry>("/Odometry", 10);
+    pub_path_ = nh.advertise<nav_msgs::Path>("/path", 10);
+
+    // location
+    pub_global_map_ = nh.advertise<sensor_msgs::PointCloud2>("/global_map", 1);
+    sub_init_pose_ = nh.subscribe("/initialpose", 8, &LaserMapping::initialpose_callback, this);
+    // for uav;
+    pub_msg2uav_ = nh.advertise<geometry_msgs::PoseStamped>("/mavros/vision_pose/pose", 100);
 }
 
 LaserMapping::LaserMapping() {
@@ -318,18 +332,11 @@ void LaserMapping::Run() {
     // update local map
     Timer::Evaluate([&, this]() { MapIncremental(); }, "    Incremental Mapping");
 
-    LOG(INFO) << "[ mapping ]: In num: " << scan_undistort_->points.size() << " downsamp " << cur_pts
-              << " Map grid num: " << ivox_->NumValidGrids() << " effect num : " << effect_feat_num_;
+    // LOG(INFO) << "[ mapping ]: In num: " << scan_undistort_->points.size() << " downsamp " << cur_pts
+    //           << " Map grid num: " << ivox_->NumValidGrids() << " effect num : " << effect_feat_num_;
 
     // publish or save map pcd
-    if (run_in_offline_) {
-        if (pcd_save_en_) {
-            PublishFrameWorld();
-        }
-        if (path_save_en_) {
-            PublishPath(pub_path_);
-        }
-    } else {
+    {
         if (pub_odom_aft_mapped_) {
             PublishOdometry(pub_odom_aft_mapped_);
         }
@@ -346,10 +353,172 @@ void LaserMapping::Run() {
             PublishFrameEffectWorld(pub_laser_cloud_effect_world_);
         }
     }
-
     // Debug variables
     frame_num_++;
 }
+
+void LaserMapping::Run_location(){
+    if (!SyncPackages()) {
+        return;
+    }
+
+    p_imu_->Process(measures_, kf_, scan_undistort_);
+    if (scan_undistort_->empty() || (scan_undistort_ == nullptr)) {
+        LOG(WARNING) << "No point, skip this scan!";
+        return;
+    }
+
+    if (flg_first_scan_) {
+        first_lidar_time_ = measures_.lidar_bag_time_;
+        flg_first_scan_ = false;
+        return;
+    }
+    flg_EKF_inited_ = (measures_.lidar_bag_time_ - first_lidar_time_) >= options::INIT_TIME;
+
+    if(!flg_location_inited_){
+        initialpose();
+        return;
+    }
+    
+    /// downsample
+    Timer::Evaluate(
+        [&, this]() {
+            voxel_scan_.setInputCloud(scan_undistort_);
+            voxel_scan_.filter(*scan_down_body_);
+        },
+        "Downsample PointCloud");
+
+    int cur_pts = scan_down_body_->size();
+    if (cur_pts < 5) {
+        LOG(WARNING) << "Too few points, skip this scan!" << scan_undistort_->size() << ", " << scan_down_body_->size();
+        return;
+    }
+    scan_down_world_->resize(cur_pts);
+    nearest_points_.resize(cur_pts);
+    residuals_.resize(cur_pts, 0);
+    point_selected_surf_.resize(cur_pts, true);
+    plane_coef_.resize(cur_pts, common::V4F::Zero());
+
+    // ICP and iterated Kalman filter update
+    Timer::Evaluate(
+        [&, this]() {
+            // iterated state estimation
+            double solve_H_time = 0;
+            // update the observation model, will call nn and point-to-plane residual computation
+            kf_.update_iterated_dyn_share_modified(options::LASER_POINT_COV, solve_H_time);
+            // save the state
+            state_point_ = kf_.get_x();
+            euler_cur_ = SO3ToEuler(state_point_.rot);
+            pos_lidar_ = state_point_.pos + state_point_.rot * state_point_.offset_T_L_I;
+        },
+        "IEKF Solve and Update");
+    {
+        if (pub_odom_aft_mapped_) {
+            PublishOdometry(pub_odom_aft_mapped_);
+        }
+        if (path_pub_en_ || path_save_en_) {
+            PublishPath(pub_path_);
+        }
+        if (scan_pub_en_ || pcd_save_en_) {
+            PublishFrameWorld();
+        }
+        if (scan_pub_en_ && scan_body_pub_en_) {
+            PublishFrameBody(pub_laser_cloud_body_);
+        }
+        if (scan_pub_en_ && scan_effect_pub_en_) {
+            PublishFrameEffectWorld(pub_laser_cloud_effect_world_);
+        }
+    }
+}
+
+
+void LaserMapping::initialpose(){
+    Eigen::Affine3d init_guess;
+    if(flg_get_init_guess_){
+        init_lock_.lock();
+        init_guess.translation() = init_translation_;
+        init_guess.rotate(init_rotation_);
+        init_lock_.unlock();
+    }else{
+        init_guess = Eigen::Affine3d::Identity();
+    }
+
+    pcl::NormalDistributionsTransform<PointType, PointType> ndt;
+    ndt.setTransformationEpsilon(1e-4);
+    ndt.setEuclideanFitnessEpsilon(1e-4);
+    ndt.setMaximumIterations(40);
+    ndt.setResolution(0.8);
+    ndt.setInputSource(scan_undistort_);
+    ndt.setInputTarget(global_map_);
+
+    pcl::IterativeClosestPoint<PointType, PointType> icp;
+    icp.setMaxCorrespondenceDistance(40);
+    icp.setMaximumIterations(100);
+    icp.setTransformationEpsilon(1e-6);
+    icp.setEuclideanFitnessEpsilon(1e-6);
+    icp.setRANSACIterations(0);
+    icp.setInputSource(scan_undistort_);
+    icp.setInputTarget(global_map_);
+
+    pcl::PointCloud<PointType>::Ptr unused_result(new pcl::PointCloud<PointType>());
+    ndt.align(*unused_result, init_guess.matrix().cast<float>());
+    icp.align(*unused_result, ndt.getFinalTransformation());
+
+    if (icp.hasConverged() == false || icp.getFitnessScore() > 0.25)
+    {
+        ROS_ERROR("Global Initializing Fail! ");
+        flg_location_inited_ = false;
+        flg_get_init_guess_ = false;
+        return;
+    } else{
+        init_guess = icp.getFinalTransformation().cast<double>();
+        Eigen::Vector3d final_position = init_guess.translation();
+        Eigen::Quaterniond final_rotation(init_guess.linear());
+        ROS_INFO("\033[1;35m Initializing Succeed! \033[0m");
+        state_ikfom init_state = kf_.get_x();
+        init_state.pos = final_position;
+        init_state.rot = final_rotation;
+        kf_.change_x(init_state);
+        flg_location_inited_ = true;
+        sub_init_pose_.shutdown();
+    }
+}
+
+
+void LaserMapping::Load_map(){
+    LOG(INFO) << "\033[1;33m Load GlobalMap now, please wait...\033[0m";
+    std::string file_name = std::string("GlobalMap.pcd");
+    std::string all_points_dir(std::string(std::string(ROOT_DIR) + "maps/") + file_name);
+    pcl::io::loadPCDFile(all_points_dir, *global_map_);
+    ros::Duration(1.0).sleep();
+    sensor_msgs::PointCloud2 msg_global_map;
+    pcl::toROSMsg(*global_map_, msg_global_map);
+    msg_global_map.header.stamp = ros::Time::now();
+    msg_global_map.header.frame_id = "map";
+    if (pub_global_map_.getNumSubscribers() != 0)
+        pub_global_map_.publish(msg_global_map);
+   LOG(INFO)<< "\033[1;32m Load GlobalMap done!\033[0m";
+}
+
+
+void LaserMapping::initialpose_callback(const geometry_msgs::PoseWithCovarianceStampedConstPtr& pose_msg)
+{
+    if(flg_location_inited_)
+        return;
+    init_lock_.lock();
+        init_translation_[0] = pose_msg->pose.pose.position.x;
+        init_translation_[1] = pose_msg->pose.pose.position.y;
+        init_translation_[2] = 0.2;
+        double x,y,z,w;
+        x = pose_msg->pose.pose.orientation.x;
+        y = pose_msg->pose.pose.orientation.y;
+        z = pose_msg->pose.pose.orientation.z;
+        w = pose_msg->pose.pose.orientation.w;
+        init_rotation_ = Eigen::Quaterniond(w,x,y,z);
+    init_lock_.unlock();
+    flg_get_init_guess_ = true;
+}
+
 
 void LaserMapping::StandardPCLCallBack(const sensor_msgs::PointCloud2::ConstPtr &msg) {
     mtx_buffer_.lock();
@@ -656,12 +825,123 @@ void LaserMapping::ObsModel(state_ikfom &s, esekfom::dyn_share_datastruct<double
         "    ObsModel (IEKF Build Jacobian)");
 }
 
+void LaserMapping::ObsModel_location(state_ikfom &s, esekfom::dyn_share_datastruct<double> &ekfom_data){
+    int cnt_pts = scan_down_body_->size();
+
+    std::vector<size_t> index(cnt_pts);
+    for (size_t i = 0; i < index.size(); ++i) {
+        index[i] = i;
+    }
+
+    Timer::Evaluate(
+        [&, this]() {
+            auto R_wl = (s.rot * s.offset_R_L_I).cast<float>();
+            auto t_wl = (s.rot * s.offset_T_L_I + s.pos).cast<float>();
+
+            /** closest surface search and residual computation **/
+            std::for_each(std::execution::par_unseq, index.begin(), index.end(), [&](const size_t &i) {
+                PointType &point_body = scan_down_body_->points[i];
+                PointType &point_world = scan_down_world_->points[i];
+
+                /* transform to world frame */
+                common::V3F p_body = point_body.getVector3fMap();
+                point_world.getVector3fMap() = R_wl * p_body + t_wl;
+                point_world.intensity = point_body.intensity;
+
+                auto &points_near = nearest_points_[i];
+                if (ekfom_data.converge) {
+                    /** Find the closest surfaces in the map **/
+                    ivox_->GetClosestPoint(point_world, points_near, options::NUM_MATCH_POINTS);
+                    point_selected_surf_[i] = points_near.size() >= options::MIN_NUM_MATCH_POINTS;
+                    if (point_selected_surf_[i]) {
+                        point_selected_surf_[i] =
+                            common::esti_plane(plane_coef_[i], points_near, options::ESTI_PLANE_THRESHOLD);
+                    }
+                }
+
+                if (point_selected_surf_[i]) {
+                    auto temp = point_world.getVector4fMap();
+                    temp[3] = 1.0;
+                    float pd2 = plane_coef_[i].dot(temp);
+
+                    bool valid_corr = p_body.norm() > 81 * pd2 * pd2;
+                    if (valid_corr) {
+                        point_selected_surf_[i] = true;
+                        residuals_[i] = pd2;
+                    }
+                }
+            });
+        },
+        "ObsModel (Lidar Match)");
+
+    effect_feat_num_ = 0;
+
+    corr_pts_.resize(cnt_pts);
+    corr_norm_.resize(cnt_pts);
+    for (int i = 0; i < cnt_pts; i++) {
+        if (point_selected_surf_[i]) {
+            corr_norm_[effect_feat_num_] = plane_coef_[i];
+            corr_pts_[effect_feat_num_] = scan_down_body_->points[i].getVector4fMap();
+            corr_pts_[effect_feat_num_][3] = residuals_[i];
+
+            effect_feat_num_++;
+        }
+    }
+    corr_pts_.resize(effect_feat_num_);
+    corr_norm_.resize(effect_feat_num_);
+
+    if (effect_feat_num_ < 1) {
+        ekfom_data.valid = false;
+        LOG(WARNING) << "No Effective Points!";
+        return;
+    }
+
+    Timer::Evaluate(
+        [&, this]() {
+            /*** Computation of Measurement Jacobian matrix H and measurements vector ***/
+            ekfom_data.h_x = Eigen::MatrixXd::Zero(effect_feat_num_, 12);  // 23
+            ekfom_data.h.resize(effect_feat_num_);
+
+            index.resize(effect_feat_num_);
+            const common::M3F off_R = s.offset_R_L_I.toRotationMatrix().cast<float>();
+            const common::V3F off_t = s.offset_T_L_I.cast<float>();
+            const common::M3F Rt = s.rot.toRotationMatrix().transpose().cast<float>();
+
+            std::for_each(std::execution::par_unseq, index.begin(), index.end(), [&](const size_t &i) {
+                common::V3F point_this_be = corr_pts_[i].head<3>();
+                common::M3F point_be_crossmat = SKEW_SYM_MATRIX(point_this_be);
+                common::V3F point_this = off_R * point_this_be + off_t;
+                common::M3F point_crossmat = SKEW_SYM_MATRIX(point_this);
+
+                /*** get the normal vector of closest surface/corner ***/
+                common::V3F norm_vec = corr_norm_[i].head<3>();
+
+                /*** calculate the Measurement Jacobian matrix H ***/
+                common::V3F C(Rt * norm_vec);
+                common::V3F A(point_crossmat * C);
+
+                if (extrinsic_est_en_) {
+                    common::V3F B(point_be_crossmat * off_R.transpose() * C);
+                    ekfom_data.h_x.block<1, 12>(i, 0) << norm_vec[0], norm_vec[1], norm_vec[2], A[0], A[1], A[2], B[0],
+                        B[1], B[2], C[0], C[1], C[2];
+                } else {
+                    ekfom_data.h_x.block<1, 12>(i, 0) << norm_vec[0], norm_vec[1], norm_vec[2], A[0], A[1], A[2], 0.0,
+                        0.0, 0.0, 0.0, 0.0, 0.0;
+                }
+
+                /*** Measurement: distance to the closest surface/corner ***/
+                ekfom_data.h(i) = -corr_pts_[i][3];
+            });
+        },
+        "    ObsModel (IEKF Build Jacobian)");
+}
+
 /////////////////////////////////////  debug save / show /////////////////////////////////////////////////////
 
 void LaserMapping::PublishPath(const ros::Publisher pub_path) {
     SetPosestamp(msg_body_pose_);
     msg_body_pose_.header.stamp = ros::Time().fromSec(lidar_end_time_);
-    msg_body_pose_.header.frame_id = "camera_init";
+    msg_body_pose_.header.frame_id = "map";
 
     /*** if path is too large, the rvis will crash ***/
     path_.poses.push_back(msg_body_pose_);
@@ -671,7 +951,7 @@ void LaserMapping::PublishPath(const ros::Publisher pub_path) {
 }
 
 void LaserMapping::PublishOdometry(const ros::Publisher &pub_odom_aft_mapped) {
-    odom_aft_mapped_.header.frame_id = "camera_init";
+    odom_aft_mapped_.header.frame_id = "map";
     odom_aft_mapped_.child_frame_id = "body";
     odom_aft_mapped_.header.stamp = ros::Time().fromSec(lidar_end_time_);  // ros::Time().fromSec(lidar_end_time_);
     SetPosestamp(odom_aft_mapped_.pose);
@@ -687,6 +967,12 @@ void LaserMapping::PublishOdometry(const ros::Publisher &pub_odom_aft_mapped) {
         odom_aft_mapped_.pose.covariance[i * 6 + 5] = P(k, 2);
     }
 
+    geometry_msgs::PoseStamped msg2uav;
+    msg2uav.header.stamp = odom_aft_mapped_.header.stamp;
+    msg2uav.header.frame_id = "body";
+    msg2uav.pose = odom_aft_mapped_.pose.pose;
+    pub_msg2uav_.publish(msg2uav);
+
     static tf::TransformBroadcaster br;
     tf::Transform transform;
     tf::Quaternion q;
@@ -697,7 +983,7 @@ void LaserMapping::PublishOdometry(const ros::Publisher &pub_odom_aft_mapped) {
     q.setY(odom_aft_mapped_.pose.pose.orientation.y);
     q.setZ(odom_aft_mapped_.pose.pose.orientation.z);
     transform.setRotation(q);
-    br.sendTransform(tf::StampedTransform(transform, odom_aft_mapped_.header.stamp, "camera_init", "body"));
+    br.sendTransform(tf::StampedTransform(transform, odom_aft_mapped_.header.stamp, "map", "body"));
 }
 
 void LaserMapping::PublishFrameWorld() {
@@ -721,7 +1007,7 @@ void LaserMapping::PublishFrameWorld() {
         sensor_msgs::PointCloud2 laserCloudmsg;
         pcl::toROSMsg(*laserCloudWorld, laserCloudmsg);
         laserCloudmsg.header.stamp = ros::Time().fromSec(lidar_end_time_);
-        laserCloudmsg.header.frame_id = "camera_init";
+        laserCloudmsg.header.frame_id = "map";
         pub_laser_cloud_world_.publish(laserCloudmsg);
         publish_count_ -= options::PUBFRAME_PERIOD;
     }
@@ -773,7 +1059,7 @@ void LaserMapping::PublishFrameEffectWorld(const ros::Publisher &pub_laser_cloud
     sensor_msgs::PointCloud2 laserCloudmsg;
     pcl::toROSMsg(*laser_cloud, laserCloudmsg);
     laserCloudmsg.header.stamp = ros::Time().fromSec(lidar_end_time_);
-    laserCloudmsg.header.frame_id = "camera_init";
+    laserCloudmsg.header.frame_id = "map";
     pub_laser_cloud_effect_world.publish(laserCloudmsg);
     publish_count_ -= options::PUBFRAME_PERIOD;
 }
@@ -845,8 +1131,8 @@ void LaserMapping::Finish() {
     /* 1. make sure you have enough memories
     /* 2. pcd save will largely influence the real-time performences **/
     if (pcl_wait_save_->size() > 0 && pcd_save_en_) {
-        std::string file_name = std::string("scans.pcd");
-        std::string all_points_dir(std::string(std::string(ROOT_DIR) + "PCD/") + file_name);
+        std::string file_name = std::string("GlobalMap.pcd");
+        std::string all_points_dir(std::string(std::string(ROOT_DIR) + "maps/") + file_name);
         pcl::PCDWriter pcd_writer;
         LOG(INFO) << "current scan saved to /PCD/" << file_name;
         pcd_writer.writeBinary(all_points_dir, *pcl_wait_save_);

@@ -17,6 +17,7 @@ int main(int argc, char **argv) {
     if(FLAGS_need_logs){
         save_log("local");
     }
+
     ros::init(argc, argv, "lio_lite");
     ros::NodeHandle nh;
 
@@ -25,8 +26,7 @@ int main(int argc, char **argv) {
 
     signal(SIGINT, SigHandle);
     ros::Rate rate(5000);
-
-    // online, almost same with offline, just receive the messages from ros
+    
     while (ros::ok()) {
         if (lio_lite::options::FLAG_EXIT) {
             break;
@@ -36,7 +36,7 @@ int main(int argc, char **argv) {
         rate.sleep();
     }
 
-    LOG(INFO) << "finishing mapping";
+    LOG(INFO) << "finishing!";
     laser_mapping->Finish();
 
     lio_lite::Timer::PrintAll();
