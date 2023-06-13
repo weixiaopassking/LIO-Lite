@@ -14,6 +14,7 @@
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <pcl/registration/icp.h>
 #include <pcl/registration/ndt.h>
+#include <pcl/kdtree/kdtree_flann.h>
 
 #include "imu_processing.hpp"
 #include "ivox3d/ivox3d.h"
@@ -87,6 +88,7 @@ class LaserMapping {
     Eigen::Vector3d init_translation_;  
     Eigen::Quaterniond init_rotation_;
     std::mutex init_lock_;
+    pcl::KdTreeFLANN<PointType> kdtree_;
 
 
    private:

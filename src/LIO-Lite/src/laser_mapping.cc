@@ -101,20 +101,8 @@ bool LaserMapping::LoadParams(ros::NodeHandle &nh) {
     nh.param<float>("ivox_grid_resolution", ivox_options_.resolution_, 0.2);
     nh.param<int>("ivox_nearby_type", ivox_nearby_type, 18);
 
-    LOG(INFO) << "lidar_type " << lidar_type;
-    if (lidar_type == 1) {
-        preprocess_->SetLidarType(LidarType::AVIA);
-        LOG(INFO) << "Using AVIA Lidar";
-    } else if (lidar_type == 2) {
-        preprocess_->SetLidarType(LidarType::VELO32);
-        LOG(INFO) << "Using Velodyne 32 Lidar";
-    } else if (lidar_type == 3) {
-        preprocess_->SetLidarType(LidarType::OUST64);
-        LOG(INFO) << "Using OUST 64 Lidar";
-    } else {
-        LOG(WARNING) << "unknown lidar_type";
-        return false;
-    }
+    preprocess_->SetLidarType(LidarType::AVIA);
+    LOG(INFO) << "\033[1;32m Using Mid-360 Lidar \033[0m";
 
     if (ivox_nearby_type == 0) {
         ivox_options_.nearby_type_ = IVoxType::NearbyType::CENTER;
@@ -399,7 +387,10 @@ void LaserMapping::Run_location(){
     point_selected_surf_.resize(cur_pts, true);
     plane_coef_.resize(cur_pts, common::V4F::Zero());
 
+    std::cout << kf_.get_x() << std::endl;
+
     // ICP and iterated Kalman filter update
+    LOG(INFO) << "\033[1;33m ICP and iterated Kalman filter update start. \033[0m"; 
     Timer::Evaluate(
         [&, this]() {
             // iterated state estimation
@@ -412,6 +403,7 @@ void LaserMapping::Run_location(){
             pos_lidar_ = state_point_.pos + state_point_.rot * state_point_.offset_T_L_I;
         },
         "IEKF Solve and Update");
+    LOG(INFO) << "\033[1;32m ICP and iterated Kalman filter update end. \033[0m"; 
     {
         if (pub_odom_aft_mapped_) {
             PublishOdometry(pub_odom_aft_mapped_);
@@ -490,6 +482,7 @@ void LaserMapping::Load_map(){
     std::string file_name = std::string("GlobalMap.pcd");
     std::string all_points_dir(std::string(std::string(ROOT_DIR) + "maps/") + file_name);
     pcl::io::loadPCDFile(all_points_dir, *global_map_);
+    kdtree_.setInputCloud(global_map_);
     ros::Duration(1.0).sleep();
     sensor_msgs::PointCloud2 msg_global_map;
     pcl::toROSMsg(*global_map_, msg_global_map);
@@ -833,13 +826,16 @@ void LaserMapping::ObsModel_location(state_ikfom &s, esekfom::dyn_share_datastru
         index[i] = i;
     }
 
+    std::cout << "11111111111" << std::endl;
+
     Timer::Evaluate(
         [&, this]() {
             auto R_wl = (s.rot * s.offset_R_L_I).cast<float>();
             auto t_wl = (s.rot * s.offset_T_L_I + s.pos).cast<float>();
 
             /** closest surface search and residual computation **/
-            std::for_each(std::execution::par_unseq, index.begin(), index.end(), [&](const size_t &i) {
+            std::for_each(std::execution::par_unseq, index.begin(), index.end(), [&](const size_t &i) 
+            {
                 PointType &point_body = scan_down_body_->points[i];
                 PointType &point_world = scan_down_world_->points[i];
 
@@ -848,12 +844,20 @@ void LaserMapping::ObsModel_location(state_ikfom &s, esekfom::dyn_share_datastru
                 point_world.getVector3fMap() = R_wl * p_body + t_wl;
                 point_world.intensity = point_body.intensity;
 
+                std::cout << "2222222222" << std::endl;
                 auto &points_near = nearest_points_[i];
                 if (ekfom_data.converge) {
                     /** Find the closest surfaces in the map **/
-                    ivox_->GetClosestPoint(point_world, points_near, options::NUM_MATCH_POINTS);
-                    point_selected_surf_[i] = points_near.size() >= options::MIN_NUM_MATCH_POINTS;
+                    static float search_radius = 0.5;  // 搜索半径
+                    std::vector<int> k_indices;
+                    std::vector<float> k_distances;
+                    kdtree_.radiusSearch(point_world, search_radius, k_indices, k_distances);
+                    point_selected_surf_[i] = k_indices.size() >= options::MIN_NUM_MATCH_POINTS;
                     if (point_selected_surf_[i]) {
+                        for(int k = 0; k < k_indices.size(); k++){
+                            PointType point_select = global_map_->points[k_indices[i]];
+                            points_near.push_back(point_select);
+                        }
                         point_selected_surf_[i] =
                             common::esti_plane(plane_coef_[i], points_near, options::ESTI_PLANE_THRESHOLD);
                     }
@@ -873,6 +877,8 @@ void LaserMapping::ObsModel_location(state_ikfom &s, esekfom::dyn_share_datastru
             });
         },
         "ObsModel (Lidar Match)");
+
+    std::cout << "44444444444" << std::endl;
 
     effect_feat_num_ = 0;
 
@@ -1013,8 +1019,8 @@ void LaserMapping::PublishFrameWorld() {
     }
 
     /**************** save map ****************/
-    /* 1. make sure you have enough memories
-    /* 2. noted that pcd save will influence the real-time performences **/
+    // 1. make sure you have enough memories
+    // 2. noted that pcd save will influence the real-time performences
     if (pcd_save_en_) {
         *pcl_wait_save_ += *laserCloudWorld;
 
@@ -1134,7 +1140,7 @@ void LaserMapping::Finish() {
         std::string file_name = std::string("GlobalMap.pcd");
         std::string all_points_dir(std::string(std::string(ROOT_DIR) + "maps/") + file_name);
         pcl::PCDWriter pcd_writer;
-        LOG(INFO) << "current scan saved to /PCD/" << file_name;
+        LOG(INFO) << "current scan saved to /maps/" << file_name;
         pcd_writer.writeBinary(all_points_dir, *pcl_wait_save_);
     }
 

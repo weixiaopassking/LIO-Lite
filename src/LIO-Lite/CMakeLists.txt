@@ -51,3 +51,8 @@ add_executable(run_mapping_online src/run_mapping_online.cc)
 target_link_libraries(run_mapping_online
         ${PROJECT_NAME} gflags
         )
+
+add_executable(run_location_online src/run_location_online.cc)
+target_link_libraries(run_location_online
+        ${PROJECT_NAME} gflags
+        )

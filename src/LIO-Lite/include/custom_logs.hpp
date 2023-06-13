@@ -30,7 +30,7 @@ void save_log(const string& dir){
   char time_str[100];
   strftime(time_str, sizeof(time_str), "%Y%m%d-%H%M%S", localtime(&now_c));
 	std::string package_path, log_folder;
-	if (dir == "empty"){
+	if (dir == "local"){
 		package_path = ros::package::getPath("lio_lite");
 		log_folder = package_path + "/logs/" + time_str + "/";
 		if (!std::filesystem::exists(log_folder)) {

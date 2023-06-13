@@ -12,7 +12,7 @@
 	<param name="filter_size_map" type="double" value="0.5" />
 	<param name="cube_side_length" type="double" value="1000" />
 	<param name="runtime_pos_log_enable" type="bool" value="1" />
-  <node pkg="lio_lite" type="run_mapping_online" name="laserMapping" output="screen" />
+  <node pkg="lio_lite" type="run_location_online" name="laserMapping" output="screen" />
 
 	<group if="$(arg rviz)">
 		<node launch-prefix="nice" pkg="rviz" type="rviz" name="rviz" args="-d $(find lio_lite)/launch/include/rviz.rviz" />

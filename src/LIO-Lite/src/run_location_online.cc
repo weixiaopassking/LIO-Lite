@@ -17,9 +17,10 @@ int main(int argc, char **argv) {
     if(FLAGS_need_logs){
         save_log("local");
     }
-
     ros::init(argc, argv, "lio_lite");
     ros::NodeHandle nh;
+
+    LOG(INFO) << "\033[1;32m run_mapping_online \033[0m";
 
     auto laser_mapping = std::make_shared<lio_lite::LaserMapping>();
     laser_mapping->InitROS(nh);
@@ -27,12 +28,14 @@ int main(int argc, char **argv) {
     signal(SIGINT, SigHandle);
     ros::Rate rate(5000);
     
+    laser_mapping->Load_map();
+
     while (ros::ok()) {
         if (lio_lite::options::FLAG_EXIT) {
             break;
         }
         ros::spinOnce();
-        laser_mapping->Run();
+        laser_mapping->Run_location();
         rate.sleep();
     }
 
