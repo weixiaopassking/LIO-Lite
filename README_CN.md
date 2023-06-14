@@ -18,6 +18,26 @@ c++ == 17
 4. pcl: ```sudo apt-get install libpcl-dev```
 5. yaml-cpp: ```sudo apt-get install libyaml-cpp-dev```
 
+## Build
+```
+  git clone https://github.com/Liansheng-Wang/LIO-Lite.git  
+  cd LIO-Lite  
+  catkin_make  
+```
+
+## Run
+```
+  mkdir src/LIO-Lite/maps  src/LIO-Lite/logs
+  source devel/setup.zsh
+  roslaunch lio_lite mapping_360.launch  
+```
+在完成建图之后，可以使用下面的命令开启重定位模式：
+```
+  roslaunch lio_lite location_360.launch  
+```
+### note：
+  重定位过程中如果不是在起点的时，需要在rviz中手动进行重定位
+
 ## Reference
 * [FAST-LIO2](https://github.com/hku-mars/FAST_LIO.git)
 * [LIO-SAM](https://github.com/TixiaoShan/LIO-SAM.git)

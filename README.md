@@ -20,6 +20,28 @@ The project is developed using C++17 standard.
 5. yaml-cpp: ```sudo apt-get install libyaml-cpp-dev```
 
 
+## Build
+```
+  git clone https://github.com/Liansheng-Wang/LIO-Lite.git  
+  cd LIO-Lite  
+  catkin_make  
+```
+
+## Run
+```
+  mkdir src/LIO-Lite/maps  src/LIO-Lite/logs
+  source devel/setup.zsh
+  roslaunch lio_lite mapping_360.launch  
+```
+After rebuilding the map, you can follow the following command to load the map for relocation  
+```
+  roslaunch lio_lite location_360.launch  
+```
+
+### note:
+If it is not at the starting point during the repositioning process, it needs to be manually repositioned in rviz
+
+
 ## Reference
 * [FAST-LIO2](https://github.com/hku-mars/FAST_LIO.git)
 * [LIO-SAM](https://github.com/TixiaoShan/LIO-SAM.git)
