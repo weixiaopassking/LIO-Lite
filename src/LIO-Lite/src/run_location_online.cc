@@ -19,8 +19,8 @@ int main(int argc, char **argv) {
     }
     ros::init(argc, argv, "lio_lite");
     ros::NodeHandle nh;
-
-    LOG(INFO) << "\033[1;32m run_mapping_online \033[0m";
+    
+    LOG(INFO) << "\033[1;32m run_location_online \033[0m";
 
     auto laser_mapping = std::make_shared<lio_lite::LaserMapping>();
     laser_mapping->InitROS(nh);
