@@ -498,7 +498,7 @@ void LaserMapping::Load_map(){
     msg_map_.header.frame_id = "map";
     msg_map_.header.stamp = ros::Time::now();
 
-    global_map_ = nullptr;
+    // global_map_ = nullptr;
     LOG(INFO)<< "\033[1;32m Load GlobalMap done!\033[0m";
 }
 
