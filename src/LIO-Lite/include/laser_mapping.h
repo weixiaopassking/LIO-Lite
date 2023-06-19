@@ -15,6 +15,7 @@
 #include <pcl/registration/icp.h>
 #include <pcl/registration/ndt.h>
 #include <pcl/kdtree/kdtree_flann.h>
+#include <pcl/filters/voxel_grid.h>
 
 #include "imu_processing.hpp"
 #include "ivox3d/ivox3d.h"
@@ -78,9 +79,12 @@ class LaserMapping {
   private:
     void initialpose_callback(const geometry_msgs::PoseWithCovarianceStampedConstPtr& pose_msg);
     void initialpose();
+    void VisualMap(const ros::TimerEvent &e);
     ros::Subscriber sub_init_pose_;
     ros::Publisher pub_global_map_;
     ros::Publisher pub_msg2uav_;
+    ros::Timer visual_timer_;
+    sensor_msgs::PointCloud2 msg_map_;
     bool flg_islocation_mode_ = false;
     bool flg_location_inited_ = false;
     bool flg_get_init_guess_ = false;

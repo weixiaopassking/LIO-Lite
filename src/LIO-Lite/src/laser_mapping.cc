@@ -254,6 +254,7 @@ void LaserMapping::SubAndPubToROS(ros::NodeHandle &nh) {
     // location
     pub_global_map_ = nh.advertise<sensor_msgs::PointCloud2>("/global_map", 1);
     sub_init_pose_ = nh.subscribe("/initialpose", 8, &LaserMapping::initialpose_callback, this);
+    visual_timer_ = nh.createTimer(ros::Duration(5), &LaserMapping::VisualMap, this);
     // for uav;
     pub_msg2uav_ = nh.advertise<geometry_msgs::PoseStamped>("/mavros/vision_pose/pose", 100);
 }
@@ -320,8 +321,8 @@ void LaserMapping::Run() {
     // update local map
     Timer::Evaluate([&, this]() { MapIncremental(); }, "    Incremental Mapping");
 
-    // LOG(INFO) << "[ mapping ]: In num: " << scan_undistort_->points.size() << " downsamp " << cur_pts
-    //           << " Map grid num: " << ivox_->NumValidGrids() << " effect num : " << effect_feat_num_;
+    LOG(INFO) << "[ mapping ]: In num: " << scan_undistort_->points.size() << " downsamp " << cur_pts
+              << " Map grid num: " << ivox_->NumValidGrids() << " effect num : " << effect_feat_num_;
 
     // publish or save map pcd
     {
@@ -478,22 +479,35 @@ void LaserMapping::Load_map(){
     std::string file_name = std::string("GlobalMap.pcd");
     std::string all_points_dir(std::string(std::string(ROOT_DIR) + "maps/") + file_name);
     pcl::io::loadPCDFile(all_points_dir, *global_map_);
+
+    pcl::VoxelGrid<PointType> VoxelGridFilter;
+    VoxelGridFilter.setLeafSize(0.3, 0.3, 0.3);
+    VoxelGridFilter.setInputCloud(global_map_);
+    pcl::PointCloud<PointType>::Ptr global_map_ds(new pcl::PointCloud<PointType>());
+    
     PointVector points_to_add;
-    points_to_add.reserve(global_map_->points.size());
+    points_to_add.reserve(global_map_ds->points.size());
     for(int i=0; i < global_map_->points.size(); i++){
         PointType temp_p = global_map_->points[i];
         points_to_add.push_back(temp_p);
     }
     ivox_->AddPoints(points_to_add);
-    // kdtree_.setInputCloud(global_map_);
-    ros::Duration(1.0).sleep();
-    sensor_msgs::PointCloud2 msg_global_map;
-    pcl::toROSMsg(*global_map_, msg_global_map);
-    msg_global_map.header.stamp = ros::Time::now();
-    msg_global_map.header.frame_id = "map";
-    if (pub_global_map_.getNumSubscribers() != 0)
-        pub_global_map_.publish(msg_global_map);
-   LOG(INFO)<< "\033[1;32m Load GlobalMap done!\033[0m";
+    
+    VoxelGridFilter.filter(*global_map_ds);
+    pcl::toROSMsg(*global_map_ds, msg_map_);
+    msg_map_.header.frame_id = "map";
+    msg_map_.header.stamp = ros::Time::now();
+
+    global_map_ = nullptr;
+    LOG(INFO)<< "\033[1;32m Load GlobalMap done!\033[0m";
+}
+
+
+void LaserMapping::VisualMap(const ros::TimerEvent &e){
+    if(pub_global_map_.getNumSubscribers() != 0){
+        msg_map_.header.stamp = ros::Time::now();
+        pub_global_map_.publish(msg_map_);
+    }
 }
 
 
