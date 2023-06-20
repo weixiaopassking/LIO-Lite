@@ -253,7 +253,7 @@ void LaserMapping::SubAndPubToROS(ros::NodeHandle &nh) {
 
     // location
     pub_global_map_ = nh.advertise<sensor_msgs::PointCloud2>("/global_map", 1);
-    sub_init_pose_ = nh.subscribe("/initialpose", 8, &LaserMapping::initialpose_callback, this);
+    sub_init_pose_ = nh.subscribe("/initialpose", 1, &LaserMapping::initialpose_callback, this);
     visual_timer_ = nh.createTimer(ros::Duration(5), &LaserMapping::VisualMap, this);
     // for uav;
     pub_msg2uav_ = nh.advertise<geometry_msgs::PoseStamped>("/mavros/vision_pose/pose", 100);
@@ -498,7 +498,6 @@ void LaserMapping::Load_map(){
     msg_map_.header.frame_id = "map";
     msg_map_.header.stamp = ros::Time::now();
 
-    // global_map_ = nullptr;
     LOG(INFO)<< "\033[1;32m Load GlobalMap done!\033[0m";
 }
 

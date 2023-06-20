@@ -1,6 +1,3 @@
-//
-// Created by xiang on 2021/9/16.
-//
 
 #ifndef LIO_LITE_IVOX3D_H
 #define LIO_LITE_IVOX3D_H
