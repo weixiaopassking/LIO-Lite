@@ -79,7 +79,6 @@ inline void ComputeMeanAndCov(const C& data, Eigen::Matrix<double, dim, 1>& mean
     size_t len = data.size();
     assert(len > 1);
 
-    // clang-format off
     mean = std::accumulate(data.begin(), data.end(), Eigen::Matrix<double, dim, 1>::Zero().eval(),
                            [&getter](const D& sum, const auto& data) -> D { return sum + getter(data); }) / len;
     cov = std::accumulate(data.begin(), data.end(), E::Zero().eval(),
@@ -87,7 +86,6 @@ inline void ComputeMeanAndCov(const C& data, Eigen::Matrix<double, dim, 1>& mean
                               D v = getter(data) - mean;
                               return sum + v * v.transpose();
                           }) / (len - 1);
-    // clang-format on
 }
 
 // template<typename PointT>
