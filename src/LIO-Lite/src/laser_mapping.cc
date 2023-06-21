@@ -546,7 +546,7 @@ void LaserMapping::Load_map(){
     VoxelGridFilter.filter(*global_map_ds);
     PointVector points_to_add;
     points_to_add.reserve(global_map_ds->points.size());
-    for(int i=0; i < global_map_ds->points.size(); i++){
+    for(size_t i=0; i < global_map_ds->points.size(); i++){
         PointType temp_p = global_map_ds->points[i];
         points_to_add.push_back(temp_p);
     }
@@ -725,7 +725,7 @@ void LaserMapping::MapIncremental() {
     point_no_need_downsample.reserve(cur_pts);
 
     std::vector<size_t> index(cur_pts);
-    for (size_t i = 0; i < cur_pts; ++i) {
+    for (int i = 0; i < cur_pts; ++i) {
         index[i] = i;
     }
 

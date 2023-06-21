@@ -73,7 +73,7 @@ class IVox {
     bool GetClosestPoint(const PointType& pt, PointType& closest_pt);
 
     /// get nn with condition
-    bool GetClosestPoint(const PointType& pt, PointVector& closest_pt, int max_num = 5, double max_range = 5.0);
+    bool GetClosestPoint(const PointType& pt, PointVector& closest_pt, size_t max_num = 5, double max_range = 5.0);
 
     /// get nn in cloud
     bool GetClosestPoint(const PointVector& cloud, PointVector& closest_cloud);
@@ -127,7 +127,7 @@ bool IVox<dim, node_type, PointType>::GetClosestPoint(const PointType& pt, Point
 }
 
 template <int dim, IVoxNodeType node_type, typename PointType>
-bool IVox<dim, node_type, PointType>::GetClosestPoint(const PointType& pt, PointVector& closest_pt, int max_num,
+bool IVox<dim, node_type, PointType>::GetClosestPoint(const PointType& pt, PointVector& closest_pt, size_t max_num,
                                                       double max_range) {
     std::vector<DistPoint> candidates;
     candidates.reserve(max_num * nearby_grids_.size());

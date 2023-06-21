@@ -103,7 +103,7 @@ public:
     double voxel_size_ = 1.0;       // 体素大小
     double inv_voxel_size_ = 1.0;   //
     int min_effective_pts_ = 10;    // 最近邻点数阈值
-    int min_pts_in_voxel_ = 3;      // 每个栅格中最小点数
+    size_t min_pts_in_voxel_ = 3;      // 每个栅格中最小点数
     double eps_ = 1e-2;             // 收敛判定条件
     double res_outlier_th_ = 20.0;  // 异常值拒绝阈值
     bool remove_centroid_ = false;  // 是否计算两个点云中心并移除中心？
@@ -253,7 +253,7 @@ inline bool Ndt3d::AlignNdt(Eigen::Affine3d& init_pose) {
   }
 
   std::vector<int> index(source_->points.size());
-  for (int i = 0; i < index.size(); ++i) {
+  for (size_t i = 0; i < index.size(); ++i) {
     index[i] = i;
   }
 
@@ -274,7 +274,7 @@ inline bool Ndt3d::AlignNdt(Eigen::Affine3d& init_pose) {
       // 计算qs所在的栅格以及它的最近邻栅格
       Vec3i key = (qs * options_.inv_voxel_size_).cast<int>();
 
-      for (int i = 0; i < nearby_grids_.size(); ++i) {
+      for (size_t i = 0; i < nearby_grids_.size(); ++i) {
         auto key_off = key + nearby_grids_[i];
         auto it = grids_.find(key_off);
         int real_idx = idx * num_residual_per_point + i;
@@ -312,7 +312,7 @@ inline bool Ndt3d::AlignNdt(Eigen::Affine3d& init_pose) {
     Mat6d H = Mat6d::Zero();
     Vec6d err = Vec6d::Zero();
 
-    for (int idx = 0; idx < effect_pts.size(); ++idx) {
+    for (size_t idx = 0; idx < effect_pts.size(); ++idx) {
       if (!effect_pts[idx]) {
           continue;
       }
@@ -335,9 +335,9 @@ inline bool Ndt3d::AlignNdt(Eigen::Affine3d& init_pose) {
     pose.translation() += dx.tail<3>();
 
     // 更新
-    LOG(INFO) << "iter " << iter << " total res: " << total_res << ", eff: " << effective_num
-              << ", mean res: " << total_res / effective_num << ", dxn: " << dx.norm()
-              << ", dx: " << dx.transpose();
+    // LOG(INFO) << "iter " << iter << " total res: " << total_res << ", eff: " << effective_num
+    //           << ", mean res: " << total_res / effective_num << ", dxn: " << dx.norm()
+    //           << ", dx: " << dx.transpose();
 
     if (gt_set_) {
       double pose_error = lio_lite::Log<double>((gt_pose_.inverse() * pose).rotation()).norm();
