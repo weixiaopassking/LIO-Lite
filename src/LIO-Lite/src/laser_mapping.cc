@@ -254,7 +254,9 @@ void LaserMapping::SubAndPubToROS(ros::NodeHandle &nh) {
     // location
     pub_global_map_ = nh.advertise<sensor_msgs::PointCloud2>("/global_map", 1);
     sub_init_pose_ = nh.subscribe("/initialpose", 1, &LaserMapping::initialpose_callback, this);
-    visual_timer_ = nh.createTimer(ros::Duration(5), &LaserMapping::VisualMap, this);
+    if(flg_islocation_mode_){
+        visual_timer_ = nh.createTimer(ros::Duration(5), &LaserMapping::VisualMap, this);
+    }
     // for uav;
     pub_msg2uav_ = nh.advertise<geometry_msgs::PoseStamped>("/mavros/vision_pose/pose", 100);
 }
@@ -365,7 +367,7 @@ void LaserMapping::Run_location(){
     flg_EKF_inited_ = (measures_.lidar_bag_time_ - first_lidar_time_) >= options::INIT_TIME;
 
     if(!flg_location_inited_){
-        initialpose();
+        initialpose2();
         return;
     }
     
@@ -470,6 +472,58 @@ void LaserMapping::initialpose(){
         kf_.change_x(init_state);
         flg_location_inited_ = true;
         sub_init_pose_.shutdown();
+        global_map_ = nullptr;
+        pcl_feature_point_ = nullptr;
+    }
+}
+
+void LaserMapping::initialpose2(){
+    Eigen::Affine3d init_guess;
+    if(flg_get_init_guess_){
+        init_lock_.lock();
+        init_guess.translation() = init_translation_;
+        init_guess.rotate(init_rotation_);
+        init_lock_.unlock();
+    }else{
+        init_guess = Eigen::Affine3d::Identity();
+    }
+
+    P2P::Ndt3d ndt;
+    ndt.SetTarget(global_map_);
+    ndt.SetSource(scan_undistort_);
+    ndt.AlignNdt(init_guess);
+
+    pcl::IterativeClosestPoint<PointType, PointType> icp;
+    icp.setMaxCorrespondenceDistance(40);
+    icp.setMaximumIterations(100);
+    icp.setTransformationEpsilon(1e-6);
+    icp.setEuclideanFitnessEpsilon(1e-6);
+    icp.setRANSACIterations(0);
+    icp.setInputSource(scan_undistort_);
+    icp.setInputTarget(global_map_);
+
+    pcl::PointCloud<PointType>::Ptr unused_result(new pcl::PointCloud<PointType>());
+
+    icp.align(*unused_result, init_guess.matrix().cast<float>());
+
+    if (icp.hasConverged() == false || icp.getFitnessScore() > 0.25)
+    {
+        ROS_ERROR("Global Initializing Fail! ");
+        flg_location_inited_ = false;
+        flg_get_init_guess_ = false;
+        return;
+    } else{
+        init_guess = icp.getFinalTransformation().cast<double>();
+        Eigen::Vector3d final_position = init_guess.translation();
+        Eigen::Quaterniond final_rotation(init_guess.linear());
+        ROS_INFO("\033[1;35m Initializing Succeed! \033[0m");
+        state_ikfom init_state = kf_.get_x();
+        init_state.pos = final_position;
+        init_state.rot = final_rotation;
+        kf_.change_x(init_state);
+        flg_location_inited_ = true;
+        sub_init_pose_.shutdown();
+        global_map_ = nullptr;
     }
 }
 
@@ -480,24 +534,30 @@ void LaserMapping::Load_map(){
     std::string all_points_dir(std::string(std::string(ROOT_DIR) + "maps/") + file_name);
     pcl::io::loadPCDFile(all_points_dir, *global_map_);
 
+    std::string feature_name = std::string("FeatureMap.pcd");
+    std::string feature_dir(std::string(std::string(ROOT_DIR) + "maps/") + file_name);
+    pcl::io::loadPCDFile(feature_dir, *pcl_feature_point_);
+
+    // ivox 加入特征地图; 
     pcl::VoxelGrid<PointType> VoxelGridFilter;
     VoxelGridFilter.setLeafSize(0.3, 0.3, 0.3);
-    VoxelGridFilter.setInputCloud(global_map_);
+    VoxelGridFilter.setInputCloud(pcl_feature_point_);
     pcl::PointCloud<PointType>::Ptr global_map_ds(new pcl::PointCloud<PointType>());
-    
+    VoxelGridFilter.filter(*global_map_ds);
     PointVector points_to_add;
     points_to_add.reserve(global_map_ds->points.size());
-    for(int i=0; i < global_map_->points.size(); i++){
-        PointType temp_p = global_map_->points[i];
+    for(int i=0; i < global_map_ds->points.size(); i++){
+        PointType temp_p = global_map_ds->points[i];
         points_to_add.push_back(temp_p);
     }
     ivox_->AddPoints(points_to_add);
     
-    VoxelGridFilter.filter(*global_map_ds);
+    // VoxelGridFilter.filter(*global_map_ds);
     pcl::toROSMsg(*global_map_ds, msg_map_);
     msg_map_.header.frame_id = "map";
     msg_map_.header.stamp = ros::Time::now();
 
+    pcl_feature_point_ = nullptr;
     LOG(INFO)<< "\033[1;32m Load GlobalMap done!\033[0m";
 }
 
@@ -761,7 +821,6 @@ void LaserMapping::ObsModel(state_ikfom &s, esekfom::dyn_share_datastruct<double
                     auto temp = point_world.getVector4fMap();
                     temp[3] = 1.0;
                     float pd2 = plane_coef_[i].dot(temp);
-
                     bool valid_corr = p_body.norm() > 81 * pd2 * pd2;
                     if (valid_corr) {
                         point_selected_surf_[i] = true;
@@ -776,11 +835,15 @@ void LaserMapping::ObsModel(state_ikfom &s, esekfom::dyn_share_datastruct<double
 
     corr_pts_.resize(cnt_pts);
     corr_norm_.resize(cnt_pts);
+    feature_cloud_->points.resize(cnt_pts);
     for (int i = 0; i < cnt_pts; i++) {
         if (point_selected_surf_[i]) {
             corr_norm_[effect_feat_num_] = plane_coef_[i];
             corr_pts_[effect_feat_num_] = scan_down_body_->points[i].getVector4fMap();
             corr_pts_[effect_feat_num_][3] = residuals_[i];
+            auto temp_point = scan_down_body_->points[i];
+            //TODO: temp_point.normal = 
+            feature_cloud_->points.push_back(temp_point);
 
             effect_feat_num_++;
         }
@@ -1036,6 +1099,7 @@ void LaserMapping::PublishFrameWorld() {
     // 2. noted that pcd save will influence the real-time performences
     if (pcd_save_en_) {
         *pcl_wait_save_ += *laserCloudWorld;
+        *pcl_feature_point_ += *feature_cloud_;
 
         static int scan_wait_num = 0;
         scan_wait_num++;
@@ -1155,6 +1219,14 @@ void LaserMapping::Finish() {
         pcl::PCDWriter pcd_writer;
         LOG(INFO) << "current scan saved to /maps/" << file_name;
         pcd_writer.writeBinary(all_points_dir, *pcl_wait_save_);
+    }
+
+    if (pcl_feature_point_->size() > 0 && pcd_save_en_) {
+        std::string file_name = std::string("FeatureMap.pcd");
+        std::string all_points_dir(std::string(std::string(ROOT_DIR) + "maps/") + file_name);
+        pcl::PCDWriter pcd_writer;
+        LOG(INFO) << "current scan saved to /maps/" << file_name;
+        pcd_writer.writeBinary(all_points_dir, *pcl_feature_point_);
     }
 
     LOG(INFO) << "finish done";

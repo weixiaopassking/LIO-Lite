@@ -10,6 +10,7 @@
 #include <thread>
 
 #include <mutex>
+#include <chrono>
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <pcl/registration/icp.h>
@@ -21,6 +22,7 @@
 #include "ivox3d/ivox3d.h"
 #include "options.h"
 #include "pointcloud_preprocess.h"
+#include "register/ndt.hpp"
 
 namespace lio_lite {
 
@@ -79,6 +81,7 @@ class LaserMapping {
   private:
     void initialpose_callback(const geometry_msgs::PoseWithCovarianceStampedConstPtr& pose_msg);
     void initialpose();
+    void initialpose2();
     void VisualMap(const ros::TimerEvent &e);
     ros::Subscriber sub_init_pose_;
     ros::Publisher pub_global_map_;
@@ -132,6 +135,7 @@ class LaserMapping {
 
     /// point clouds data
     CloudPtr scan_undistort_{new PointCloudType()};   // scan after undistortion
+    CloudPtr feature_cloud_{new PointCloudType()};      // 
     CloudPtr scan_down_body_{new PointCloudType()};   // downsampled scan in body
     CloudPtr scan_down_world_{new PointCloudType()};  // downsampled scan in world
     std::vector<PointVector> nearest_points_;         // nearest points of current scan
@@ -199,6 +203,7 @@ class LaserMapping {
     std::string dataset_;
 
     PointCloudType::Ptr pcl_wait_save_{new PointCloudType()};  // debug save
+    CloudPtr pcl_feature_point_{new PointCloudType()};
     nav_msgs::Path path_;
     geometry_msgs::PoseStamped msg_body_pose_;
 };
