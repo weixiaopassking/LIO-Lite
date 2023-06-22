@@ -261,11 +261,11 @@ void LaserMapping::SubAndPubToROS(ros::NodeHandle &nh) {
     pub_path_ = nh.advertise<nav_msgs::Path>("/path", 10);
 
     // location
-    sub_init_pose_ = nh.subscribe("/initialpose", 1, &LaserMapping::initialpose_callback, this);
     if(flg_islocation_mode_){
+        sub_init_pose_ = nh.subscribe("/initialpose", 1, &LaserMapping::initialpose_callback, this);
         pub_global_map_ = nh.advertise<sensor_msgs::PointCloud2>("/global_map", 1);
         pub_feature_map_ = nh.advertise<sensor_msgs::PointCloud2>("/feature_map", 1);
-        visual_timer_ = nh.createTimer(ros::Duration(5), &LaserMapping::VisualMap, this);
+        visual_timer_ = nh.createTimer(ros::Duration(2), &LaserMapping::VisualMap, this);
     }
     // for uav;
     pub_msg2uav_ = nh.advertise<geometry_msgs::PoseStamped>("/mavros/vision_pose/pose", 100);
@@ -379,7 +379,7 @@ void LaserMapping::Run_location(){
     flg_EKF_inited_ = (measures_.lidar_bag_time_ - first_lidar_time_) >= options::INIT_TIME;
 
     if(!flg_location_inited_){
-        initialpose2();
+        initialpose();
         return;
     }
     
@@ -471,7 +471,9 @@ void LaserMapping::initialpose(){
     {
         ROS_ERROR("Global Initializing Fail! ");
         flg_location_inited_ = false;
-        flg_get_init_guess_ = false;
+        if(flg_get_init_guess_){
+            flg_get_init_guess_ = false;
+        }
         return;
     } else{
         init_guess = icp.getFinalTransformation().cast<double>();
@@ -522,7 +524,9 @@ void LaserMapping::initialpose2(){
     {
         ROS_ERROR("Global Initializing Fail! ");
         flg_location_inited_ = false;
-        flg_get_init_guess_ = false;
+        if(flg_get_init_guess_){
+            flg_get_init_guess_ = false;
+        }
         return;
     } else{
         init_guess = icp.getFinalTransformation().cast<double>();
