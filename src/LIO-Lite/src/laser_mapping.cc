@@ -8,6 +8,7 @@
 
 
 // #define DEBUG
+    #define TEST_VOXEL
 
 namespace lio_lite {
 
@@ -332,8 +333,10 @@ void LaserMapping::Run() {
     // update local map
     Timer::Evaluate([&, this]() { MapIncremental(); }, "    Incremental Mapping");
 
-    // LOG(INFO) << "[ mapping ]: In num: " << scan_undistort_->points.size() << " downsamp " << cur_pts
-    //           << " Map grid num: " << ivox_->NumValidGrids() << " effect num : " << effect_feat_num_;
+    #ifdef TEST_VOXEL
+    LOG(INFO) << "[ mapping ]: In num: " << scan_undistort_->points.size() << " downsamp " << cur_pts
+              << " Map grid num: " << ivox_->NumValidGrids() << " effect num : " << effect_feat_num_;
+    #endif
 
     // publish or save map pcd
     {
@@ -570,9 +573,12 @@ void LaserMapping::Load_map(){
     msg_feature_.header.frame_id = "map";
     msg_feature_.header.stamp = ros::Time::now();
 
-    #ifdef DEBUG
-    LOG(INFO) << "\033[1;32m "<< str_f_map_ << " downsample point size: " 
+
+    #ifdef TEST_VOXEL
+    LOG(INFO) << "\033[1;35m "<< str_f_map_ << " downsample point size: " 
               <<  map_ds->size() <<  "\033[0m";
+    LOG(INFO) << "\033[1;35m " << " ivox_->NumValidGrids: " 
+              <<  ivox_->NumValidGrids() <<  "\033[0m";
     #endif
 
     pcl::PointCloud<PointType>::Ptr glo_map_ds(new pcl::PointCloud<PointType>());
@@ -1271,6 +1277,12 @@ void LaserMapping::Finish() {
     /**************** save map ****************/
     // 1. make sure you have enough memories
     // 2. pcd save will largely influence the real-time performences
+
+    if(!pcd_save_en_){
+        LOG(INFO) << "\033[1;32m "<< " finish done " << "\033[0m";
+        return;
+    }
+
     if (pcl_wait_save_->size() > 0 && pcd_save_en_) {
         std::string file_name = std::string("GlobalMap.pcd");
         std::string all_points_dir(std::string(std::string(ROOT_DIR) + "maps/") + file_name);
