@@ -84,10 +84,10 @@ class LaserMapping {
     void initialpose2();
     void VisualMap(const ros::TimerEvent &e);
     ros::Subscriber sub_init_pose_;
-    ros::Publisher pub_global_map_;
+    ros::Publisher pub_global_map_, pub_feature_map_;
     ros::Publisher pub_msg2uav_;
     ros::Timer visual_timer_;
-    sensor_msgs::PointCloud2 msg_map_;
+    sensor_msgs::PointCloud2 msg_map_, msg_feature_;
     bool flg_islocation_mode_ = false;
     bool flg_location_inited_ = false;
     bool flg_get_init_guess_ = false;
@@ -95,7 +95,9 @@ class LaserMapping {
     Eigen::Vector3d init_translation_;  
     Eigen::Quaterniond init_rotation_;
     std::mutex init_lock_;
-    pcl::KdTreeFLANN<PointType> kdtree_;
+    // pcl::KdTreeFLANN<PointType> kdtree_;
+    std::string str_g_map_, str_f_map_;
+    double load_eaf_size_;
 
 
    private:

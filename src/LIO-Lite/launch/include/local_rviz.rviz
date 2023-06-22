@@ -7,13 +7,13 @@ Panels:
         - /Global Options1
         - /mapping1
         - /mapping1/current_scan1
-        - /mapping1/history_scan1
         - /mapping1/history_scan1/Autocompute Value Bounds1
         - /Odometry1/Odometry1
         - /Odometry1/Odometry1/Shape1
         - /Odometry1/Odometry1/Covariance1
         - /Odometry1/Odometry1/Covariance1/Position1
         - /Odometry1/Odometry1/Covariance1/Orientation1
+        - /Path1
         - /MarkerArray1/Namespaces1
       Splitter Ratio: 0.5
     Tree Height: 1260
@@ -34,7 +34,7 @@ Panels:
   - Class: rviz/Time
     Name: Time
     SyncMode: 0
-    SyncSource: current_scan
+    SyncSource: FeatureMap
 Preferences:
   PromptSaveOnExit: true
 Toolbars:
@@ -71,7 +71,7 @@ Visualization Manager:
       Value: false
     - Class: rviz/Group
       Displays:
-        - Alpha: 1
+        - Alpha: 0.699999988079071
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
             Max Value: 10
@@ -91,8 +91,8 @@ Visualization Manager:
           Position Transformer: XYZ
           Queue Size: 1
           Selectable: false
-          Size (Pixels): 3
-          Size (m): 0.11999999731779099
+          Size (Pixels): 15
+          Size (m): 0.12999999523162842
           Style: Spheres
           Topic: /cloud_registered
           Unreliable: false
@@ -137,24 +137,24 @@ Visualization Manager:
           Channel Name: intensity
           Class: rviz/PointCloud2
           Color: 173; 127; 168
-          Color Transformer: Intensity
+          Color Transformer: FlatColor
           Decay Time: 1000
-          Enabled: true
+          Enabled: false
           Invert Rainbow: true
           Max Color: 255; 255; 255
           Min Color: 0; 0; 0
           Name: history_scan
           Position Transformer: XYZ
-          Queue Size: 5000
+          Queue Size: 100000
           Selectable: true
-          Size (Pixels): 2
-          Size (m): 0.10000000149011612
+          Size (Pixels): 1
+          Size (m): 0.009999999776482582
           Style: Points
           Topic: /cloud_registered
           Unreliable: false
           Use Fixed Frame: true
           Use rainbow: true
-          Value: true
+          Value: false
         - Alpha: 1
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
@@ -236,13 +236,13 @@ Visualization Manager:
     - Alpha: 0
       Buffer Length: 2
       Class: rviz/Path
-      Color: 25; 255; 255
+      Color: 124; 212; 157
       Enabled: true
       Head Diameter: 0
       Head Length: 0
       Length: 0.30000001192092896
       Line Style: Billboards
-      Line Width: 0.20000000298023224
+      Line Width: 0.15000000596046448
       Name: Path
       Offset:
         X: 0
@@ -332,14 +332,14 @@ Visualization Manager:
       Axis: Z
       Channel Name: normal_x
       Class: rviz/PointCloud2
-      Color: 91; 250; 206
+      Color: 25; 255; 0
       Color Transformer: FlatColor
       Decay Time: 0
       Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
       Min Color: 0; 0; 0
-      Name: PointCloud2
+      Name: GlobalMap
       Position Transformer: XYZ
       Queue Size: 10
       Selectable: true
@@ -351,7 +351,7 @@ Visualization Manager:
       Use Fixed Frame: true
       Use rainbow: true
       Value: false
-    - Alpha: 1
+    - Alpha: 0.10000000149011612
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
         Max Value: 10
@@ -360,28 +360,28 @@ Visualization Manager:
       Axis: Z
       Channel Name: intensity
       Class: rviz/PointCloud2
-      Color: 186; 113; 232
-      Color Transformer: FlatColor
+      Color: 239; 41; 41
+      Color Transformer: Intensity
       Decay Time: 0
-      Enabled: false
-      Invert Rainbow: false
+      Enabled: true
+      Invert Rainbow: true
       Max Color: 255; 255; 255
       Min Color: 0; 0; 0
-      Name: PointCloud2
+      Name: FeatureMap
       Position Transformer: XYZ
-      Queue Size: 10
+      Queue Size: 1
       Selectable: true
-      Size (Pixels): 3
-      Size (m): 0.009999999776482582
-      Style: Flat Squares
+      Size (Pixels): 15
+      Size (m): 0.18000000715255737
+      Style: Spheres
       Topic: /feature_map
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
-      Value: false
+      Value: true
   Enabled: true
   Global Options:
-    Background Color: 255; 255; 255
+    Background Color: 245; 255; 249
     Default Light: true
     Fixed Frame: map
     Frame Rate: 10
@@ -407,7 +407,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 34.03536605834961
+      Distance: 31.397708892822266
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -415,17 +415,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 0.27098149061203003
-        Y: -0.7419293522834778
-        Z: -0.0006103515625
+        X: -0.046539753675460815
+        Y: 0.32656630873680115
+        Z: 0.14482128620147705
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.44479724764823914
+      Pitch: 0.5797970294952393
       Target Frame: global
-      Yaw: 2.5850048065185547
+      Yaw: 2.6800103187561035
     Saved: ~
 Window Geometry:
   Displays:

@@ -6,6 +6,9 @@
 #include "laser_mapping.h"
 #include "utils.h"
 
+
+// #define DEBUG
+
 namespace lio_lite {
 
 bool LaserMapping::InitROS(ros::NodeHandle &nh) {
@@ -85,7 +88,8 @@ bool LaserMapping::LoadParams(ros::NodeHandle &nh) {
     nh.param<double>("mapping/acc_cov", acc_cov, 0.1);
     nh.param<double>("mapping/b_gyr_cov", b_gyr_cov, 0.0001);
     nh.param<double>("mapping/b_acc_cov", b_acc_cov, 0.0001);
-    nh.param<double>("preprocess/blind", preprocess_->Blind(), 0.01);
+    nh.param<double>("preprocess/blind2", preprocess_->Blind(), 0.01);
+    nh.param<double>("preprocess/max_range2", preprocess_->MaxRange(), 10000);
     nh.param<float>("preprocess/time_scale", preprocess_->TimeScale(), 1e-3);
     nh.param<int>("preprocess/lidar_type", lidar_type, 1);
     nh.param<int>("preprocess/scan_line", preprocess_->NumScans(), 16);
@@ -100,6 +104,10 @@ bool LaserMapping::LoadParams(ros::NodeHandle &nh) {
 
     nh.param<float>("ivox_grid_resolution", ivox_options_.resolution_, 0.2);
     nh.param<int>("ivox_nearby_type", ivox_nearby_type, 18);
+
+    nh.param<std::string>("load_g_map", str_g_map_, "empty");
+    nh.param<std::string>("load_f_map", str_f_map_, "empty");
+    nh.param<double>("load_eaf_size", load_eaf_size_, 0.5);
 
     preprocess_->SetLidarType(LidarType::AVIA);
     LOG(INFO) << "\033[1;32m Using Mid-360 Lidar \033[0m";
@@ -252,9 +260,10 @@ void LaserMapping::SubAndPubToROS(ros::NodeHandle &nh) {
     pub_path_ = nh.advertise<nav_msgs::Path>("/path", 10);
 
     // location
-    pub_global_map_ = nh.advertise<sensor_msgs::PointCloud2>("/global_map", 1);
     sub_init_pose_ = nh.subscribe("/initialpose", 1, &LaserMapping::initialpose_callback, this);
     if(flg_islocation_mode_){
+        pub_global_map_ = nh.advertise<sensor_msgs::PointCloud2>("/global_map", 1);
+        pub_feature_map_ = nh.advertise<sensor_msgs::PointCloud2>("/feature_map", 1);
         visual_timer_ = nh.createTimer(ros::Duration(5), &LaserMapping::VisualMap, this);
     }
     // for uav;
@@ -323,8 +332,8 @@ void LaserMapping::Run() {
     // update local map
     Timer::Evaluate([&, this]() { MapIncremental(); }, "    Incremental Mapping");
 
-    LOG(INFO) << "[ mapping ]: In num: " << scan_undistort_->points.size() << " downsamp " << cur_pts
-              << " Map grid num: " << ivox_->NumValidGrids() << " effect num : " << effect_feat_num_;
+    // LOG(INFO) << "[ mapping ]: In num: " << scan_undistort_->points.size() << " downsamp " << cur_pts
+    //           << " Map grid num: " << ivox_->NumValidGrids() << " effect num : " << effect_feat_num_;
 
     // publish or save map pcd
     {
@@ -387,7 +396,7 @@ void LaserMapping::Run_location(){
     scan_down_world_->resize(cur_pts);
     nearest_points_.resize(cur_pts);
     residuals_.resize(cur_pts, 0);
-    point_selected_surf_.resize(cur_pts, true);
+    point_selected_surf_.resize(cur_pts, false);
     plane_coef_.resize(cur_pts, common::V4F::Zero());
 
     // ICP and iterated Kalman filter update
@@ -524,40 +533,60 @@ void LaserMapping::initialpose2(){
         flg_location_inited_ = true;
         sub_init_pose_.shutdown();
         global_map_ = nullptr;
+        pcl_feature_point_ = nullptr;
     }
 }
 
 
 void LaserMapping::Load_map(){
     LOG(INFO) << "\033[1;33m Load GlobalMap now, please wait...\033[0m";
-    std::string file_name = std::string("GlobalMap.pcd");
-    std::string all_points_dir(std::string(std::string(ROOT_DIR) + "maps/") + file_name);
+    std::string all_points_dir(std::string(std::string(ROOT_DIR) + "maps/") + str_g_map_);
     pcl::io::loadPCDFile(all_points_dir, *global_map_);
 
-    std::string feature_name = std::string("FeatureMap.pcd");
-    std::string feature_dir(std::string(std::string(ROOT_DIR) + "maps/") + file_name);
+    std::string feature_dir(std::string(std::string(ROOT_DIR) + "maps/") + str_f_map_);
     pcl::io::loadPCDFile(feature_dir, *pcl_feature_point_);
 
+    LOG(INFO) << "\033[1;32m "<< str_g_map_ << " point size: " 
+              <<  global_map_->size() <<  "\033[0m";
+
+    LOG(INFO) << "\033[1;32m "<< str_f_map_ << " point size: " 
+              <<  pcl_feature_point_->size() <<  "\033[0m";
+
+    pcl::PointCloud<PointType>::Ptr map_ds(new pcl::PointCloud<PointType>());
     // ivox 加入特征地图; 
     pcl::VoxelGrid<PointType> VoxelGridFilter;
-    VoxelGridFilter.setLeafSize(0.3, 0.3, 0.3);
+    VoxelGridFilter.setLeafSize(load_eaf_size_, load_eaf_size_, load_eaf_size_);
     VoxelGridFilter.setInputCloud(pcl_feature_point_);
-    pcl::PointCloud<PointType>::Ptr global_map_ds(new pcl::PointCloud<PointType>());
-    VoxelGridFilter.filter(*global_map_ds);
+    VoxelGridFilter.filter(*map_ds);
     PointVector points_to_add;
-    points_to_add.reserve(global_map_ds->points.size());
-    for(size_t i=0; i < global_map_ds->points.size(); i++){
-        PointType temp_p = global_map_ds->points[i];
+    points_to_add.reserve(map_ds->points.size());
+    for(size_t i=0; i < map_ds->points.size(); i++){
+        PointType temp_p = map_ds->points[i];
         points_to_add.push_back(temp_p);
     }
     ivox_->AddPoints(points_to_add);
-    
-    // VoxelGridFilter.filter(*global_map_ds);
-    pcl::toROSMsg(*global_map_ds, msg_map_);
+
+    pcl::toROSMsg(*map_ds, msg_feature_);
+    msg_feature_.header.frame_id = "map";
+    msg_feature_.header.stamp = ros::Time::now();
+
+    #ifdef DEBUG
+    LOG(INFO) << "\033[1;32m "<< str_f_map_ << " downsample point size: " 
+              <<  map_ds->size() <<  "\033[0m";
+    #endif
+
+    pcl::PointCloud<PointType>::Ptr glo_map_ds(new pcl::PointCloud<PointType>());
+    VoxelGridFilter.setInputCloud(global_map_);
+    VoxelGridFilter.filter(*glo_map_ds);
+    pcl::toROSMsg(*glo_map_ds, msg_map_);
     msg_map_.header.frame_id = "map";
     msg_map_.header.stamp = ros::Time::now();
 
-    pcl_feature_point_ = nullptr;
+    #ifdef DEBUG
+    LOG(INFO) << "\033[1;32m "<< str_g_map_ << " downsample point size: " 
+              <<  map_ds->size() <<  "\033[0m";
+    #endif
+
     LOG(INFO)<< "\033[1;32m Load GlobalMap done!\033[0m";
 }
 
@@ -566,6 +595,10 @@ void LaserMapping::VisualMap(const ros::TimerEvent &e){
     if(pub_global_map_.getNumSubscribers() != 0){
         msg_map_.header.stamp = ros::Time::now();
         pub_global_map_.publish(msg_map_);
+    }
+    if(pub_feature_map_.getNumSubscribers() != 0){
+        msg_feature_.header.stamp = ros::Time::now();
+        pub_feature_map_.publish(msg_feature_);
     }
 }
 
@@ -791,6 +824,8 @@ void LaserMapping::ObsModel(state_ikfom &s, esekfom::dyn_share_datastruct<double
         index[i] = i;
     }
 
+    int selected_surf_count = 0;
+
     Timer::Evaluate(
         [&, this]() {
             auto R_wl = (s.rot * s.offset_R_L_I).cast<float>();
@@ -825,6 +860,9 @@ void LaserMapping::ObsModel(state_ikfom &s, esekfom::dyn_share_datastruct<double
                     if (valid_corr) {
                         point_selected_surf_[i] = true;
                         residuals_[i] = pd2;
+                        selected_surf_count ++;
+                    }else{
+                        point_selected_surf_[i] = false;
                     }
                 }
             });
@@ -835,19 +873,33 @@ void LaserMapping::ObsModel(state_ikfom &s, esekfom::dyn_share_datastruct<double
 
     corr_pts_.resize(cnt_pts);
     corr_norm_.resize(cnt_pts);
-    feature_cloud_->points.resize(cnt_pts);
+    feature_cloud_->clear();
+    feature_cloud_->reserve(selected_surf_count);
+    #ifdef DEBUG
+        LOG(INFO) << "\033[1;34m "<< "============================================================= " << "\033[0m";
+        LOG(INFO) << "\033[1;34m "<< "ObsModel: scan_down_body_ size: " << scan_down_body_->size() << "\033[0m";
+        LOG(INFO) << "\033[1;34m "<< "ObsModel: feature_cloud_ size: " << feature_cloud_->size() << "\033[0m";
+    #endif
+
     for (int i = 0; i < cnt_pts; i++) {
         if (point_selected_surf_[i]) {
             corr_norm_[effect_feat_num_] = plane_coef_[i];
             corr_pts_[effect_feat_num_] = scan_down_body_->points[i].getVector4fMap();
             corr_pts_[effect_feat_num_][3] = residuals_[i];
-            auto temp_point = scan_down_body_->points[i];
-            //TODO: temp_point.normal = 
+            PointType temp_point = scan_down_body_->points[i];
             feature_cloud_->points.push_back(temp_point);
-
             effect_feat_num_++;
         }
     }
+    feature_cloud_->points.shrink_to_fit();
+
+    #ifdef DEBUG
+        LOG(INFO) << "\033[1;32m "<< "selected_surf_count:  " << selected_surf_count << "  effect_feat_num_:  " << effect_feat_num_ << "\033[0m";
+        LOG(INFO) << "\033[1;32m "<< "ObsModel: scan_down_body_ size: " << scan_down_body_->size() << "\033[0m";
+        LOG(INFO) << "\033[1;32m "<< "ObsModel: feature_cloud_ size: " << feature_cloud_->size() << "\033[0m";
+    #endif
+
+
     corr_pts_.resize(effect_feat_num_);
     corr_norm_.resize(effect_feat_num_);
 
@@ -926,16 +978,8 @@ void LaserMapping::ObsModel_location(state_ikfom &s, esekfom::dyn_share_datastru
                     /** Find the closest surfaces in the map **/
                     ivox_->GetClosestPoint(point_world, points_near, options::NUM_MATCH_POINTS);
                     point_selected_surf_[i] = points_near.size() >= options::MIN_NUM_MATCH_POINTS;
-                    // static float search_radius = 0.5;  // 搜索半径
-                    // std::vector<int> k_indices;
-                    // std::vector<float> k_distances;
-                    // kdtree_.radiusSearch(point_world, search_radius, k_indices, k_distances);
-                    // point_selected_surf_[i] = k_indices.size() >= options::MIN_NUM_MATCH_POINTS;
+
                     if (point_selected_surf_[i]) {
-                        // for(int k = 0; k < k_indices.size(); k++){
-                        //     PointType point_select = global_map_->points[k_indices[k]];
-                        //     points_near.push_back(point_select);
-                        // }
                         point_selected_surf_[i] =
                             common::esti_plane(plane_coef_[i], points_near, options::ESTI_PLANE_THRESHOLD);
                     }
@@ -1051,7 +1095,7 @@ void LaserMapping::PublishOdometry(const ros::Publisher &pub_odom_aft_mapped) {
 
     geometry_msgs::PoseStamped msg2uav;
     msg2uav.header.stamp = odom_aft_mapped_.header.stamp;
-    msg2uav.header.frame_id = "body";
+    msg2uav.header.frame_id = "map";
     msg2uav.pose = odom_aft_mapped_.pose.pose;
     pub_msg2uav_.publish(msg2uav);
 
@@ -1085,6 +1129,20 @@ void LaserMapping::PublishFrameWorld() {
         laserCloudWorld = scan_down_world_;
     }
 
+    PointCloudType::Ptr featureCloudWorld;
+    {
+        int size = feature_cloud_->points.size();
+        featureCloudWorld.reset(new PointCloudType(size, 1));
+        for (int i = 0; i < size; i++) {
+            PointBodyToWorld(&feature_cloud_->points[i], &featureCloudWorld->points[i]);
+        }
+    }
+
+    #ifdef DEBUG
+        LOG(INFO) << "\033[1;32m "<< "PublishFrameWorld: scan_down_world_ size: " << scan_down_world_->size() << "\033[0m";
+        LOG(INFO) << "\033[1;32m "<< "PublishFrameWorld: feature_cloud_ size: " << feature_cloud_->size() << "\033[0m";
+    #endif
+
     if (run_in_offline_ == false && scan_pub_en_) {
         sensor_msgs::PointCloud2 laserCloudmsg;
         pcl::toROSMsg(*laserCloudWorld, laserCloudmsg);
@@ -1099,7 +1157,7 @@ void LaserMapping::PublishFrameWorld() {
     // 2. noted that pcd save will influence the real-time performences
     if (pcd_save_en_) {
         *pcl_wait_save_ += *laserCloudWorld;
-        *pcl_feature_point_ += *feature_cloud_;
+        *pcl_feature_point_ += *featureCloudWorld;
 
         static int scan_wait_num = 0;
         scan_wait_num++;
@@ -1217,7 +1275,11 @@ void LaserMapping::Finish() {
         std::string file_name = std::string("GlobalMap.pcd");
         std::string all_points_dir(std::string(std::string(ROOT_DIR) + "maps/") + file_name);
         pcl::PCDWriter pcd_writer;
-        LOG(INFO) << "current scan saved to /maps/" << file_name;
+        #ifdef DEBUG
+        LOG(INFO) << "\033[1;32m " << "current scan saved to /maps/" << file_name << "\033[0m";
+        LOG(INFO) << "\033[1;36m "<< file_name << " point size: " 
+              <<  pcl_wait_save_->size() <<  "\033[0m";
+        #endif
         pcd_writer.writeBinary(all_points_dir, *pcl_wait_save_);
     }
 
@@ -1225,10 +1287,15 @@ void LaserMapping::Finish() {
         std::string file_name = std::string("FeatureMap.pcd");
         std::string all_points_dir(std::string(std::string(ROOT_DIR) + "maps/") + file_name);
         pcl::PCDWriter pcd_writer;
-        LOG(INFO) << "current scan saved to /maps/" << file_name;
+        #ifdef DEBUG
+        LOG(INFO) << "\033[1;32m " << "current scan saved to /maps/" << file_name << "\033[0m";
+        LOG(INFO) << "\033[1;36m " << file_name << " point size: " 
+              <<  pcl_feature_point_->size() <<  "\033[0m";
+        #endif
         pcd_writer.writeBinary(all_points_dir, *pcl_feature_point_);
     }
 
-    LOG(INFO) << "finish done";
+    
+    LOG(INFO) << "\033[1;32m "<< " finish done " << "\033[0m";
 }
 }  // namespace lio_lite

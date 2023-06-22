@@ -6,7 +6,8 @@ common:
 preprocess:
   lidar_type: 1                # 1 for Livox serials LiDAR, 2 for Velodyne LiDAR, 3 for ouster LiDAR,
   scan_line: 3
-  blind: 4
+  blind2: 10                   # 平方
+  max_range2: 400              # 20*20 = 400 
   time_scale: 1e-3
 
 mapping:
@@ -16,7 +17,7 @@ mapping:
   b_gyr_cov: 0.0001
   fov_degree: 360
   det_range: 40
-  extrinsic_est_en: true      # true: enable the online estimation of IMU-LiDAR extrinsic
+  extrinsic_est_en: false      # true: enable the online estimation of IMU-LiDAR extrinsic
   extrinsic_T: [ 0, 0, 0 ]
   extrinsic_R: [ 1, 0, 0,
                  0, 1, 0,
@@ -46,4 +47,8 @@ cube_side_length: 1000
 ivox_grid_resolution: 0.5        # default=0.2
 ivox_nearby_type: 18             # 6, 18, 26
 esti_plane_threshold: 0.1        # default=0.1
+
 location_mode: false
+load_g_map: "GlobalMap.pcd"
+load_f_map: "FeatureMap.pcd"
+load_eaf_size: 0.5

@@ -61,11 +61,16 @@ void PointCloudPreprocess::AviaHandler(const livox_ros_driver::CustomMsg::ConstP
 
                 if ((abs(cloud_full_[i].x - cloud_full_[i - 1].x) > 1e-7) ||
                     (abs(cloud_full_[i].y - cloud_full_[i - 1].y) > 1e-7) ||
-                    (abs(cloud_full_[i].z - cloud_full_[i - 1].z) > 1e-7) &&
-                        (cloud_full_[i].x * cloud_full_[i].x + cloud_full_[i].y * cloud_full_[i].y +
-                             cloud_full_[i].z * cloud_full_[i].z >
-                         (blind_ * blind_))) {
-                    is_valid_pt[i] = true;
+                    (abs(cloud_full_[i].z - cloud_full_[i - 1].z) > 1e-7))
+                {
+                    // if(cloud_full_[i].x * cloud_full_[i].x + cloud_full_[i].y * cloud_full_[i].y + cloud_full_[i].z * cloud_full_[i].z > blind_){
+                    //     is_valid_pt[i] = true;
+                    // }
+                    double normal_dis = cloud_full_[i].x * cloud_full_[i].x + cloud_full_[i].y * cloud_full_[i].y + cloud_full_[i].z * cloud_full_[i].z;
+                    if(normal_dis > blind_ and normal_dis < max_range2_){
+                        is_valid_pt[i] = true;
+                    }
+                    // std::cout << "normal_dis:  " << normal_dis << "  blind_:  " << blind_ << std::endl;
                 }
             }
         }
