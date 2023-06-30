@@ -61,7 +61,7 @@ class ImuProcess {
     common::V3D mean_acc_;
     common::V3D mean_gyr_;
     common::V3D angvel_last_;
-    common::V3D acc_s_last_;
+    common::V3D acc_s_last_ = common::V3D(0, 0, 9.81);
     double last_lidar_end_time_ = 0;
     int init_iter_num_ = 1;
     bool b_first_frame_ = true;
@@ -179,6 +179,7 @@ void ImuProcess::UndistortPcl(const common::MeasureGroup &meas, esekfom::esekf<s
     /*** Initialize IMU pose ***/
     state_ikfom imu_state = kf_state.get_x();
     IMUpose_.clear();
+    
     IMUpose_.push_back(common::set_pose6d(0.0, acc_s_last_, angvel_last_, imu_state.vel, imu_state.pos,
                                           imu_state.rot.toRotationMatrix()));
 
