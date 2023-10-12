@@ -2,5 +2,3 @@ build/
 devel/
 .catkin_workspace
 .vscode/
-maps/
-logs/

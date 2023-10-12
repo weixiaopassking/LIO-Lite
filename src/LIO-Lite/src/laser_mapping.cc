@@ -110,6 +110,15 @@ bool LaserMapping::LoadParams(ros::NodeHandle &nh) {
     nh.param<std::string>("load_f_map", str_f_map_, "empty");
     nh.param<double>("load_eaf_size", load_eaf_size_, 0.5);
 
+    std::vector<double> _init_trans;
+    std::vector<double> _init_rpy;
+    nh.param<std::vector<double>>("init_trans", _init_trans, std::vector<double>());
+    nh.param<std::vector<double>>("init_rpy", _init_rpy, std::vector<double>());
+    yaml_init_translation_ = Eigen::Map<const Eigen::Matrix<double, -1, -1, Eigen::RowMajor>>(_init_trans.data(), 3, 3);
+    yaml_init_rotation_ = Eigen::AngleAxisd(_init_rpy[0]/180 * M_PI, Eigen::Vector3d::UnitX())
+                        * Eigen::AngleAxisd(_init_rpy[1]/180 * M_PI, Eigen::Vector3d::UnitY())
+                        * Eigen::AngleAxisd(_init_rpy[2]/180 * M_PI, Eigen::Vector3d::UnitZ());
+
     preprocess_->SetLidarType(LidarType::AVIA);
     LOG(INFO) << "\033[1;32m Using Mid-360 Lidar \033[0m";
 
@@ -356,7 +365,7 @@ void LaserMapping::Run() {
             PublishFrameEffectWorld(pub_laser_cloud_effect_world_);
         }
     }
-    // Debug variables
+
     frame_num_++;
 }
 
@@ -444,6 +453,8 @@ void LaserMapping::initialpose(){
         init_lock_.unlock();
     }else{
         init_guess = Eigen::Affine3d::Identity();
+        init_guess.translation() = yaml_init_translation_;
+        init_guess.rotate(yaml_init_rotation_);
     }
 
     pcl::NormalDistributionsTransform<PointType, PointType> ndt;
@@ -547,10 +558,10 @@ void LaserMapping::initialpose2(){
 
 void LaserMapping::Load_map(){
     LOG(INFO) << "\033[1;33m Load GlobalMap now, please wait...\033[0m";
-    std::string all_points_dir(std::string(std::string(ROOT_DIR) + "maps/") + str_g_map_);
+    std::string all_points_dir(std::string(ROOTDIR + "maps/") + str_g_map_);
     pcl::io::loadPCDFile(all_points_dir, *global_map_);
 
-    std::string feature_dir(std::string(std::string(ROOT_DIR) + "maps/") + str_f_map_);
+    std::string feature_dir(std::string(ROOTDIR + "maps/") + str_f_map_);
     pcl::io::loadPCDFile(feature_dir, *pcl_feature_point_);
 
     LOG(INFO) << "\033[1;32m "<< str_g_map_ << " point size: " 
@@ -559,8 +570,7 @@ void LaserMapping::Load_map(){
     LOG(INFO) << "\033[1;32m "<< str_f_map_ << " point size: " 
               <<  pcl_feature_point_->size() <<  "\033[0m";
 
-    pcl::PointCloud<PointType>::Ptr map_ds(new pcl::PointCloud<PointType>());
-    // ivox 加入特征地图; 
+    pcl::PointCloud<PointType>::Ptr map_ds(new pcl::PointCloud<PointType>()); 
     pcl::VoxelGrid<PointType> VoxelGridFilter;
     VoxelGridFilter.setLeafSize(load_eaf_size_, load_eaf_size_, load_eaf_size_);
     VoxelGridFilter.setInputCloud(pcl_feature_point_);
@@ -576,7 +586,6 @@ void LaserMapping::Load_map(){
     pcl::toROSMsg(*map_ds, msg_feature_);
     msg_feature_.header.frame_id = "map";
     msg_feature_.header.stamp = ros::Time::now();
-
 
     #ifdef TEST_VOXEL
     LOG(INFO) << "\033[1;35m "<< str_f_map_ << " downsample point size: " 
@@ -1173,7 +1182,7 @@ void LaserMapping::PublishFrameWorld() {
         scan_wait_num++;
         if (pcl_wait_save_->size() > 0 && pcd_save_interval_ > 0 && scan_wait_num >= pcd_save_interval_) {
             pcd_index_++;
-            std::string all_points_dir(std::string(std::string(ROOT_DIR) + "PCD/scans_") + std::to_string(pcd_index_) +
+            std::string all_points_dir(std::string(ROOTDIR + "PCD/scans_") + std::to_string(pcd_index_) +
                                        std::string(".pcd"));
             pcl::PCDWriter pcd_writer;
             LOG(INFO) << "current scan saved to /PCD/" << all_points_dir;
@@ -1289,7 +1298,7 @@ void LaserMapping::Finish() {
 
     if (pcl_wait_save_->size() > 0 && pcd_save_en_) {
         std::string file_name = std::string("GlobalMap.pcd");
-        std::string all_points_dir(std::string(std::string(ROOT_DIR) + "maps/") + file_name);
+        std::string all_points_dir(std::string(ROOTDIR + "maps/") + file_name);
         pcl::PCDWriter pcd_writer;
         #ifdef DEBUG
         LOG(INFO) << "\033[1;32m " << "current scan saved to /maps/" << file_name << "\033[0m";
@@ -1301,7 +1310,7 @@ void LaserMapping::Finish() {
 
     if (pcl_feature_point_->size() > 0 && pcd_save_en_) {
         std::string file_name = std::string("FeatureMap.pcd");
-        std::string all_points_dir(std::string(std::string(ROOT_DIR) + "maps/") + file_name);
+        std::string all_points_dir(std::string(ROOTDIR + "maps/") + file_name);
         pcl::PCDWriter pcd_writer;
         #ifdef DEBUG
         LOG(INFO) << "\033[1;32m " << "current scan saved to /maps/" << file_name << "\033[0m";

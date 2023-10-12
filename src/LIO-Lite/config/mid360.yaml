@@ -5,8 +5,8 @@ common:
 
 preprocess:
   lidar_type: 1                # 1 for Livox serials LiDAR, 2 for Velodyne LiDAR, 3 for ouster LiDAR,
-  scan_line: 3
-  blind2: 10                   # 平方
+  scan_line: 4
+  blind2: 10                   # 3.2 * 3.2    Adjust according to actual situation.
   max_range2: 400              # 20*20 = 400 
   time_scale: 1e-3
 
@@ -25,12 +25,12 @@ mapping:
 
 publish:
   path_publish_en: true
-  scan_publish_en: true       # false: close all the point cloud output
-  scan_effect_pub_en: true    # true: publish the pointscloud of effect point
+  scan_publish_en: true         # false: close all the point cloud output
+  scan_effect_pub_en: true      # true: publish the pointscloud of effect point
   dense_publish_en: false       # false: low down the points number in a global-frame point clouds scan.
-  scan_bodyframe_pub_en: true  # true: output the point cloud scans in IMU-body-frame
+  scan_bodyframe_pub_en: true   # true: output the point cloud scans in IMU-body-frame
 
-path_save_en: false                 # 保存轨迹，用于精度计算和比较
+path_save_en: false 
 
 pcd_save:
   pcd_save_en: true
@@ -41,7 +41,7 @@ feature_extract_enable: false
 point_filter_num: 3
 max_iteration: 3
 filter_size_surf: 0.5
-filter_size_map: 0.5             # 暂时未用到，代码中为0， 即倾向于将降采样后的scan中的所有点加入map
+filter_size_map: 0.5 
 cube_side_length: 1000
 
 ivox_grid_resolution: 0.5        # default=0.2
@@ -49,6 +49,3 @@ ivox_nearby_type: 18             # 6, 18, 26
 esti_plane_threshold: 0.1        # default=0.1
 
 location_mode: false
-load_g_map: "GlobalMap.pcd"
-load_f_map: "FeatureMap.pcd"
-load_eaf_size: 0.5

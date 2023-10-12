@@ -29,7 +29,6 @@ The project is developed using C++17 standard.
 
 ## Run
 ```
-  mkdir src/LIO-Lite/maps  src/LIO-Lite/logs
   source devel/setup.zsh
   roslaunch lio_lite mapping_360.launch  
 ```
@@ -39,8 +38,12 @@ After rebuilding the map, you can follow the following command to load the map f
 ```
 
 ### note:
-If it is not at the starting point during the repositioning process, it needs to be manually repositioned in rviz
-
+If it is not at the starting point during the repositioning process, it needs to be manually repositioned in rviz  
+Or modify the parameters in in mid360_location.yaml:
+```
+  init_trans: [0, 0, 0]
+  init_rqy: [0, 0, 0]
+```
 
 ## Reference
 * [FAST-LIO2](https://github.com/hku-mars/FAST_LIO.git)

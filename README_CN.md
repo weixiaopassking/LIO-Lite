@@ -1,6 +1,6 @@
 # LIO-Lite
 一个可以用在无人机上的轻量级 LIO 系统：适配了Livox Mid-360雷达。  
-* 整个项目是在[faster-lio](https://github.com/gaoxiang12/faster-lio.git)的基础上做适配  
+* 整个项目是在[faster-lio](https://github.com/gaoxiang12/faster-lio.git)的基础上做适配.[faster-lio](https://github.com/gaoxiang12/faster-lio.git)纯度：98%
 * 增加了场景中的重定位  
 
 ## 分支
@@ -27,7 +27,6 @@ c++ == 17
 
 ## Run
 ```
-  mkdir src/LIO-Lite/maps  src/LIO-Lite/logs
   source devel/setup.zsh
   roslaunch lio_lite mapping_360.launch  
 ```
@@ -36,7 +35,12 @@ c++ == 17
   roslaunch lio_lite location_360.launch  
 ```
 ### note：
-  重定位过程中如果不是在起点的时，需要在rviz中手动进行重定位
+  重定位过程中如果不是在起点的时，需要在rviz中手动进行重定位  
+  或者在 mid360_location.yaml 中参数进行修改：rpy
+```
+  init_trans: [0, 0, 0]
+  init_rpy: [0, 0, 0]
+```
 
 ## Reference
 * [FAST-LIO2](https://github.com/hku-mars/FAST_LIO.git)

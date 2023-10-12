@@ -26,6 +26,10 @@
 
 namespace lio_lite {
 
+
+std::string ROOTDIR = std::string(ROOT_DIR);
+
+
 class LaserMapping {
    public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
@@ -94,8 +98,9 @@ class LaserMapping {
     PointCloudType::Ptr global_map_{new PointCloudType()};
     Eigen::Vector3d init_translation_;  
     Eigen::Quaterniond init_rotation_;
+    Eigen::Vector3d yaml_init_translation_;  
+    Eigen::Quaterniond yaml_init_rotation_;
     std::mutex init_lock_;
-    // pcl::KdTreeFLANN<PointType> kdtree_;
     std::string str_g_map_, str_f_map_;
     double load_eaf_size_;
 
