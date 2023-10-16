@@ -53,5 +53,5 @@ location_mode: true
 load_g_map: "GlobalMap.pcd"
 load_f_map: "FeatureMap.pcd"
 load_eaf_size: 0.5
-init_trans: [0.99, -0.905, 0]            # Initial value for repositioning
-init_rpy: [0, 0, -73.0]              # degree. For example, 180 degrees
+init_trans: [0, 0, 0]            # Initial value for repositioning
+init_rpy: [0, 0, 0]              # degree. For example, 180 degrees
