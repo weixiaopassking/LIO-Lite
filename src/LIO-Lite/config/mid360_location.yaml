@@ -50,8 +50,8 @@ esti_plane_threshold: 0.1        # default=0.1
 ivox_capacity: 10000000          # Adjust based on computer performance and map size.
 
 location_mode: true
-load_g_map: "SurfMap.pcd"
-load_f_map: "SurfMap.pcd"
+load_g_map: "GlobalMap.pcd"
+load_f_map: "FeatureMap.pcd"
 load_eaf_size: 0.5
 init_trans: [0.99, -0.905, 0]            # Initial value for repositioning
 init_rpy: [0, 0, -73.0]              # degree. For example, 180 degrees
