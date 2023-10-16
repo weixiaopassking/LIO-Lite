@@ -105,6 +105,9 @@ bool LaserMapping::LoadParams(ros::NodeHandle &nh) {
 
     nh.param<float>("ivox_grid_resolution", ivox_options_.resolution_, 0.2);
     nh.param<int>("ivox_nearby_type", ivox_nearby_type, 18);
+    int _capacity;
+    nh.param<int>("ivox_capacity", _capacity, 1000000);
+    ivox_options_.capacity_ = static_cast<std::size_t>(_capacity);
 
     nh.param<std::string>("load_g_map", str_g_map_, "empty");
     nh.param<std::string>("load_f_map", str_f_map_, "empty");
@@ -114,7 +117,7 @@ bool LaserMapping::LoadParams(ros::NodeHandle &nh) {
     std::vector<double> _init_rpy;
     nh.param<std::vector<double>>("init_trans", _init_trans, std::vector<double>());
     nh.param<std::vector<double>>("init_rpy", _init_rpy, std::vector<double>());
-    yaml_init_translation_ = Eigen::Map<const Eigen::Matrix<double, -1, -1, Eigen::RowMajor>>(_init_trans.data(), 3, 3);
+    yaml_init_translation_ = Eigen::Map<const Eigen::Matrix<double, -1, -1, Eigen::RowMajor>>(_init_trans.data(), 3, 1);
     yaml_init_rotation_ = Eigen::AngleAxisd(_init_rpy[0]/180 * M_PI, Eigen::Vector3d::UnitX())
                         * Eigen::AngleAxisd(_init_rpy[1]/180 * M_PI, Eigen::Vector3d::UnitY())
                         * Eigen::AngleAxisd(_init_rpy[2]/180 * M_PI, Eigen::Vector3d::UnitZ());
