@@ -50,6 +50,8 @@ esti_plane_threshold: 0.1        # default=0.1
 ivox_capacity: 10000000          # Adjust based on computer performance and map size.
 
 location_mode: true
+split_map : true
+sub_grid_resolution: 80
 load_g_map: "GlobalMap.pcd"
 load_f_map: "FeatureMap.pcd"
 load_eaf_size: 0.5

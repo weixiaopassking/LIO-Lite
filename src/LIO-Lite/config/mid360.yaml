@@ -50,3 +50,5 @@ esti_plane_threshold: 0.1        # default=0.1
 ivox_capacity: 1000000
 
 location_mode: false
+split_map : true
+sub_grid_resolution: 80
