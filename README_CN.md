@@ -52,6 +52,12 @@ c++ == 17
 ### 2023-10-17 
 在地图保存的部分增加了地图分割的部分。   
 在重定位模式可以选择增量加载地图，在大场景下的轻量定位比较合适。   
-可以根据场景的具体大小和计算平台的算力来调整分割地图的尺寸和重定位模式下的ivox的容量。
-
+可以根据场景的具体大小和计算平台的算力来调整分割地图的尺寸和重定位模式下的ivox的容量。  
+在构建完地图的时候，可以使用以下的命令来手动测试地图的分割与加载过程。   
+#### Test:
+```
+rosrun lio_lite test_split
+rosrun lio_lite test_load 
+```
 ![SplitMap](https://github.com/Liansheng-Wang/LIO-Lite/blob/eskf-base/doc/split_map.png)
+
