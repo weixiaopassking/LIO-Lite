@@ -58,5 +58,5 @@ Or modify the parameters in in mid360_location.yaml:
 Added map segmentation to avoid memory overload in large scenes and improve efficiency.   
 Incremental loading of the map can be selected in the case of relocation.   
 
-![SplitMap](https://raw.githubusercontent.com/hongmaju/light7Local/master/img/productShow/20170518152848.png)
+![SplitMap](https://github.com/Liansheng-Wang/LIO-Lite/blob/eskf-base/doc/split_map.png)
 

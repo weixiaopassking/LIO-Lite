@@ -46,3 +46,12 @@ c++ == 17
 * [FAST-LIO2](https://github.com/hku-mars/FAST_LIO.git)
 * [LIO-SAM](https://github.com/TixiaoShan/LIO-SAM.git)
 * [faster-lio](https://github.com/gaoxiang12/faster-lio.git)
+* [slam_in_autonomous_driving](https://github.com/gaoxiang12/slam_in_autonomous_driving.git)
+
+## UPDATE LOG:
+### 2023-10-17 
+在地图保存的部分增加了地图分割的部分。   
+在重定位模式可以选择增量加载地图，在大场景下的轻量定位比较合适。   
+可以根据场景的具体大小和计算平台的算力来调整分割地图的尺寸和重定位模式下的ivox的容量。
+
+![SplitMap](https://github.com/Liansheng-Wang/LIO-Lite/blob/eskf-base/doc/split_map.png)
