@@ -56,3 +56,13 @@ add_executable(run_location_online src/run_location_online.cc)
 target_link_libraries(run_location_online
         ${PROJECT_NAME} gflags
         )
+
+add_executable(test_split src/test/test_split.cc)
+target_link_libraries(test_split
+        ${PROJECT_NAME} gflags
+        )
+
+add_executable(test_load src/test/test_load.cc)
+target_link_libraries(test_load
+        ${PROJECT_NAME} gflags
+        )

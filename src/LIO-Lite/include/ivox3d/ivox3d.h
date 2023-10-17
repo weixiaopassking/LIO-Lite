@@ -69,6 +69,8 @@ class IVox {
      */
     void AddPoints(const PointVector& points_to_add);
 
+    void Clear();
+
     /// get nn
     bool GetClosestPoint(const PointType& pt, PointType& closest_pt);
 
@@ -275,6 +277,12 @@ void IVox<dim, node_type, PointType>::AddPoints(const PointVector& points_to_add
             grids_map_[key] = grids_cache_.begin();
         }
     });
+}
+
+template <int dim, IVoxNodeType node_type, typename PointType>
+void IVox<dim, node_type, PointType>::Clear(){
+    grids_map_.clear();
+    grids_cache_.clear();
 }
 
 template <int dim, IVoxNodeType node_type, typename PointType>

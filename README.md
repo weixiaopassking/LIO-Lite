@@ -49,3 +49,14 @@ Or modify the parameters in in mid360_location.yaml:
 * [FAST-LIO2](https://github.com/hku-mars/FAST_LIO.git)
 * [LIO-SAM](https://github.com/TixiaoShan/LIO-SAM.git)
 * [faster-lio](https://github.com/gaoxiang12/faster-lio.git)
+* [slam_in_autonomous_driving](https://github.com/gaoxiang12/slam_in_autonomous_driving.git)
+
+
+
+## UPDATE LOG:
+### 2023-10-17 
+Added map segmentation to avoid memory overload in large scenes and improve efficiency.   
+Incremental loading of the map can be selected in the case of relocation.   
+
+![SplitMap](https://raw.githubusercontent.com/hongmaju/light7Local/master/img/productShow/20170518152848.png)
+

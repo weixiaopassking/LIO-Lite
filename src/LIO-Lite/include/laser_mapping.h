@@ -121,13 +121,16 @@ class LaserMapping {
     bool LoadParamsFromYAML(const std::string &yaml);
 
     void PrintState(const state_ikfom &s);
+    
+    void SplitMap(CloudPtr map);
+    void DynamicLoadMap(Vec3d pose);
 
    private:
     /// modules
     IVoxType::Options ivox_options_;
     std::shared_ptr<IVoxType> ivox_ = nullptr;                    // localmap in ivox
     std::shared_ptr<PointCloudPreprocess> preprocess_ = nullptr;  // point cloud preprocess
-    std::shared_ptr<ImuProcess> p_imu_ = nullptr;                 // imu process
+    std::shared_ptr<ImuProcess> p_imu_ = nullptr;                 // imu process             
 
     /// local map related
     float det_range_ = 300.0f;
@@ -206,13 +209,18 @@ class LaserMapping {
     bool pcd_save_en_ = false;
     bool runtime_pos_log_ = true;
     int pcd_save_interval_ = -1;
-    bool path_save_en_ = false;
-    std::string dataset_;
+    bool path_save_en_ = false;    
 
     PointCloudType::Ptr pcl_wait_save_{new PointCloudType()};  // debug save
     CloudPtr pcl_feature_point_{new PointCloudType()};
     nav_msgs::Path path_;
     geometry_msgs::PoseStamped msg_body_pose_;
+
+    /////////////////////////  location  //////////////////////////////////////////////////////////////
+    bool split_map_ = false;
+    float sub_grid_resolution_ = 100;
+    std::set<Eigen::Vector2i, less_vec<2>> map_data_index_;
+    std::set<Eigen::Vector2i, less_vec<2>> hold_map_;
 };
 
 }  // namespace lio_lite

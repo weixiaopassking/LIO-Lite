@@ -113,6 +113,9 @@ bool LaserMapping::LoadParams(ros::NodeHandle &nh) {
     nh.param<std::string>("load_f_map", str_f_map_, "empty");
     nh.param<double>("load_eaf_size", load_eaf_size_, 0.5);
 
+    nh.param<bool>("split_map", split_map_, false);
+    nh.param<float>("sub_grid_resolution", sub_grid_resolution_, 100);
+
     std::vector<double> _init_trans;
     std::vector<double> _init_rpy;
     nh.param<std::vector<double>>("init_trans", _init_trans, std::vector<double>());
@@ -427,6 +430,11 @@ void LaserMapping::Run_location(){
             pos_lidar_ = state_point_.pos + state_point_.rot * state_point_.offset_T_L_I;
         },
         "IEKF Solve and Update");
+
+    if(split_map_){
+        DynamicLoadMap(state_point_.pos);
+    }
+
     {
         if (pub_odom_aft_mapped_) {
             PublishOdometry(pub_odom_aft_mapped_);
@@ -443,6 +451,56 @@ void LaserMapping::Run_location(){
         if (scan_pub_en_ && scan_effect_pub_en_) {
             PublishFrameEffectWorld(pub_laser_cloud_effect_world_);
         }
+    }
+}
+
+
+void LaserMapping::DynamicLoadMap(Vec3d pose){
+    static std::string split_map_path(std::string(ROOTDIR + "maps/split_map/"));
+    auto t1 = std::chrono::high_resolution_clock::now();
+
+    int gx = floor((pose[0] - sub_grid_resolution_/2)/sub_grid_resolution_);
+    int gy = floor((pose[1] - sub_grid_resolution_/2)/sub_grid_resolution_);
+    Vec2i key(gx, gy);
+
+    std::set<Vec2i, less_vec<2>> surrounding_index{
+        key + Vec2i(0, 0), key + Vec2i(-1, 0), key + Vec2i(-1, -1), key + Vec2i(-1, 1), key + Vec2i(0, -1),
+        key + Vec2i(0, 1), key + Vec2i(1, 0),  key + Vec2i(1, -1),  key + Vec2i(1, 1),
+    };
+
+    // 加载必要区域
+    bool map_data_changed = false;
+    int cnt_new_loaded = 0, cnt_unload = 0;
+    for (auto& k : surrounding_index) {
+        if (map_data_index_.find(k) == map_data_index_.end()) {
+            continue;
+        }
+        if (hold_map_.find(k) == hold_map_.end()) {
+            PointCloudType::Ptr cloud(new PointCloudType);
+            pcl::io::loadPCDFile(split_map_path + std::to_string(k[0]) + "_" 
+                                 + std::to_string(k[1]) + ".pcd", *cloud);
+            hold_map_.emplace(k);
+            ivox_->AddPoints(cloud->points);
+            map_data_changed = true;
+            cnt_new_loaded++;
+        }
+    }
+
+    for (auto iter = hold_map_.begin(); iter != hold_map_.end();) {
+        if ((*iter - key).cast<float>().norm() > 3.0) {
+            iter = hold_map_.erase(iter);
+            cnt_unload++;
+            map_data_changed = true;
+        } else {
+            iter++;
+        }
+    }
+
+    if (map_data_changed) {
+        auto t2 = std::chrono::high_resolution_clock::now();
+        auto time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1).count() * 1000;
+        LOG(INFO) << "new loaded: " << cnt_new_loaded << ", unload: " << cnt_unload << "  size: " << ivox_->NumValidGrids()
+                  << "  time: "  << time_used << " ms";
     }
 }
 
@@ -502,6 +560,7 @@ void LaserMapping::initialpose(){
         sub_init_pose_.shutdown();
         global_map_ = nullptr;
         pcl_feature_point_ = nullptr;
+        DynamicLoadMap(final_position);
     }
 }
 
@@ -584,8 +643,20 @@ void LaserMapping::Load_map(){
         PointType temp_p = map_ds->points[i];
         points_to_add.push_back(temp_p);
     }
-    ivox_->AddPoints(points_to_add);
 
+    if(!split_map_){
+        ivox_->AddPoints(points_to_add);  // load whole map.
+    }else{
+        std::string index_path(std::string(ROOTDIR + "maps/split_map/map_index.txt"));
+        std::ifstream fin(index_path);
+        while (!fin.eof()) {
+            int x, y;
+            fin >> x >> y;
+            map_data_index_.emplace(Eigen::Vector2i(x, y));
+        }
+        fin.close();
+    }
+    
     pcl::toROSMsg(*map_ds, msg_feature_);
     msg_feature_.header.frame_id = "map";
     msg_feature_.header.stamp = ros::Time::now();
@@ -1321,9 +1392,51 @@ void LaserMapping::Finish() {
               <<  pcl_feature_point_->size() <<  "\033[0m";
         #endif
         pcd_writer.writeBinary(all_points_dir, *pcl_feature_point_);
+        
+        if(split_map_){
+            SplitMap(pcl_feature_point_);
+        }
     }
 
-    
     LOG(INFO) << "\033[1;32m "<< " finish done " << "\033[0m";
 }
+
+void LaserMapping::SplitMap(CloudPtr map){
+    float half_resolution = sub_grid_resolution_ /2;
+    std::map<Eigen::Vector2i, PointCloudType::Ptr, less_vec<2>> map_data;  
+    for (const auto& pt : map->points) {
+        int gx = floor((pt.x - half_resolution) / sub_grid_resolution_);
+        int gy = floor((pt.y - half_resolution) / sub_grid_resolution_);
+        Eigen::Vector2i key(gx, gy);
+        auto iter = map_data.find(key);
+        if (iter == map_data.end()) {
+            CloudPtr cloud(new PointCloudType);
+            cloud->points.emplace_back(pt);
+            cloud->is_dense = false;
+            cloud->height = 1;
+            map_data.emplace(key, cloud);
+        } else {
+            iter->second->points.emplace_back(pt);
+        }
+    }
+    LOG(INFO) << "saving maps, grids: " << map_data.size();
+    std::string save_dir(std::string(ROOTDIR + "maps/split_map/"));
+    std::string mkdir_dir = "mkdir -p " + save_dir;
+    std::string rm_rf = "rm -rf " + save_dir + "*";
+    std::system(mkdir_dir.data());
+    std::system(rm_rf.data());
+    std::ofstream fout(save_dir + "/map_index.txt");
+    for (auto& dp : map_data) {
+        fout << dp.first[0] << " " << dp.first[1] << std::endl;
+        dp.second->width = dp.second->size();
+        dp.second->height = 1;
+        std::string file_path = (save_dir + std::to_string(dp.first[0]) + "_" + std::to_string(dp.first[1]) + ".pcd");
+        pcl::io::savePCDFileBinary(file_path, *dp.second);
+    }
+    fout.close();
+}
+
+
+
+
 }  // namespace lio_lite
