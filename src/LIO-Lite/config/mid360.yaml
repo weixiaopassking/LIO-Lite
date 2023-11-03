@@ -52,3 +52,8 @@ ivox_capacity: 1000000
 location_mode: false
 split_map : true
 sub_grid_resolution: 80
+load_g_map: "GlobalMap.pcd"
+load_f_map: "FeatureMap.pcd"
+load_eaf_size: 0.5
+init_trans: [0, 0, 0]            # Initial value for repositioning
+init_rpy: [0, 0, 0]              # degree. For example, 180 degrees
