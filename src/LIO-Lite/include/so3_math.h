@@ -53,10 +53,10 @@ Eigen::Matrix<T, 3, 3> Exp(const T &v1, const T &v2, const T &v3) {
     T &&norm = sqrt(v1 * v1 + v2 * v2 + v3 * v3);
     Eigen::Matrix<T, 3, 3> Eye3 = Eigen::Matrix<T, 3, 3>::Identity();
     if (norm > 0.00001) {
-        T r_ang[3] = {v1 / norm, v2 / norm, v3 / norm};
+        Eigen::Matrix<T, 3, 1> r_ang;
+        r_ang << v1 / norm, v2 / norm, v3 / norm;
         Eigen::Matrix<T, 3, 3> K;
         K = SKEW_SYM_MATRIX(r_ang);
-
         /// Roderigous Tranformation
         return Eye3 + std::sin(norm) * K + (1.0 - std::cos(norm)) * K * K;
     } else {

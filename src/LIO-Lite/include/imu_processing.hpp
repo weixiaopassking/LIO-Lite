@@ -29,6 +29,7 @@ class ImuProcess {
     ~ImuProcess();
 
     void Reset();
+    void SetInitPose(common::V3D&, common::M3D&);
     void SetExtrinsic(const common::V3D &transl, const common::M3D &rot);
     void SetGyrCov(const common::V3D &scaler);
     void SetAccCov(const common::V3D &scaler);
@@ -144,7 +145,12 @@ void ImuProcess::IMUInit(const common::MeasureGroup &meas, esekfom::esekf<state_
         N++;
     }
     state_ikfom init_state = kf_state.get_x();
-    init_state.grav = S2(-mean_acc_ / mean_acc_.norm() * common::G_m_s2);
+    init_state.grav = S2(- common::G_m_s2 * mean_acc_ / mean_acc_.norm());
+    // 使用重力做水平面
+    common::M3D rot_init; 
+    common::V3D tmp_gravity = - common::G_m_s2 * mean_acc_ / mean_acc_.norm();
+    SetInitPose(tmp_gravity, rot_init);
+    init_state.rot = rot_init;
 
     init_state.bg = mean_gyr_;
     init_state.offset_T_L_I = Lidar_T_wrt_IMU_;
@@ -160,6 +166,38 @@ void ImuProcess::IMUInit(const common::MeasureGroup &meas, esekfom::esekf<state_
     init_P(21, 21) = init_P(22, 22) = 0.00001;
     kf_state.change_P(init_P);
     last_imu_ = meas.imu_.back();
+}
+
+void ImuProcess::SetInitPose(common::V3D &tmp_gravity, common::M3D &rot)
+{
+  /** 1. initializing the gravity, gyro bias, acc and gyro covariance
+   ** 2. normalize the acceleration measurenments to unit gravity **/
+  // V3D tmp_gravity = - mean_acc / mean_acc.norm() * G_m_s2; // state_gravity;
+  common::M3D hat_grav;
+  common::V3D _gravity(0,0,-common::G_m_s2);
+  hat_grav << 0.0, _gravity(2), -_gravity(1),
+              -_gravity(2), 0.0, _gravity(0),
+              _gravity(1), -_gravity(0), 0.0;
+  double align_norm = (hat_grav * tmp_gravity).norm() / tmp_gravity.norm() / _gravity.norm();
+  double align_cos = _gravity.transpose() * tmp_gravity;
+  align_cos = align_cos / _gravity.norm() / tmp_gravity.norm();
+  if (align_norm < 1e-6)
+  {
+    if (align_cos > 1e-6)
+    {
+      rot = common::Eye3d;
+    }
+    else
+    {
+      rot = -common::Eye3d;
+    }
+  }
+  else
+  {
+    common::V3D align_angle = hat_grav * tmp_gravity / (hat_grav * tmp_gravity).norm() * acos(align_cos); 
+
+    rot = Exp<double>(align_angle(0), align_angle(1), align_angle(2));
+  }
 }
 
 void ImuProcess::UndistortPcl(const common::MeasureGroup &meas, esekfom::esekf<state_ikfom, 12, input_ikfom> &kf_state,
