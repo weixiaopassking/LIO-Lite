@@ -125,8 +125,22 @@ bool LaserMapping::LoadParams(ros::NodeHandle &nh) {
                         * Eigen::AngleAxisd(_init_rpy[1]/180 * M_PI, Eigen::Vector3d::UnitY())
                         * Eigen::AngleAxisd(_init_rpy[2]/180 * M_PI, Eigen::Vector3d::UnitZ());
 
-    preprocess_->SetLidarType(LidarType::AVIA);
-    LOG(INFO) << "\033[1;32m Using Mid-360 Lidar \033[0m";
+    if (lidar_type == 1) {
+        preprocess_->SetLidarType(LidarType::AVIA);
+        LOG(INFO) << "\033[1;32m Using Mid-360 Lidar \033[0m";
+    } else if (lidar_type == 2) {
+        preprocess_->SetLidarType(LidarType::VELO32);
+        LOG(INFO) << "\033[1;32m Using Velodyne 32 Lidar \033[0m";
+    } else if (lidar_type == 3) {
+        preprocess_->SetLidarType(LidarType::OUST64);
+        LOG(INFO) << "\033[1;32m Using OUST 64 Lidar \033[0m";
+    } else if (lidar_type == 4) {
+        preprocess_->SetLidarType(LidarType::HESAI16);
+        LOG(INFO) << "\033[1;32m Using HESAI XT16 Lidar \033[0m";
+    } else {
+        LOG(WARNING) << "unknown lidar_type";
+        return false;
+    }
 
     if (ivox_nearby_type == 0) {
         ivox_options_.nearby_type_ = IVoxType::NearbyType::CENTER;
@@ -214,6 +228,9 @@ bool LaserMapping::LoadParamsFromYAML(const std::string &yaml_file) {
         LOG(INFO) << "Using Velodyne 32 Lidar";
     } else if (lidar_type == 3) {
         preprocess_->SetLidarType(LidarType::OUST64);
+        LOG(INFO) << "Using OUST 64 Lidar";
+    } else if (lidar_type == 4) {
+        preprocess_->SetLidarType(LidarType::HESAI16);
         LOG(INFO) << "Using OUST 64 Lidar";
     } else {
         LOG(WARNING) << "unknown lidar_type";

@@ -22,7 +22,7 @@ struct EIGEN_ALIGN16 Point {
 // clang-format off
 POINT_CLOUD_REGISTER_POINT_STRUCT(velodyne_ros::Point,
                                   (float, x, x)(float, y, y)(float, z, z)(float, intensity, intensity)
-                                      (float, time, time)(std::uint16_t, ring, ring))
+                                  (float, time, time)(std::uint16_t, ring, ring))
 // clang-format on
 
 namespace ouster_ros {
@@ -41,9 +41,9 @@ struct EIGEN_ALIGN16 Point {
 // clang-format off
 POINT_CLOUD_REGISTER_POINT_STRUCT(ouster_ros::Point,
                                   (float, x, x)
-                                      (float, y, y)
-                                      (float, z, z)
-                                      (float, intensity, intensity)
+                                  (float, y, y)
+                                  (float, z, z)
+                                  (float, intensity, intensity)
                                       // use std::uint32_t to avoid conflicting with pcl::uint32_t
                                   (std::uint32_t, t, t)
                                   (std::uint16_t, reflectivity, reflectivity)
@@ -53,9 +53,29 @@ POINT_CLOUD_REGISTER_POINT_STRUCT(ouster_ros::Point,
                                   )
 // clang-format on
 
+namespace hesai_ros {
+struct EIGEN_ALIGN16 Point {
+    PCL_ADD_POINT4D
+    float intensity;
+    double timestamp;
+    uint16_t ring; 
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+};
+}
+
+POINT_CLOUD_REGISTER_POINT_STRUCT(hesai_ros::Point,
+                                  (float, x, x)
+                                  (float, y, y)
+                                  (float, z, z)
+                                  (float, intensity, intensity)
+                                  (double, timestamp, timestamp)
+                                  (uint16_t, ring, ring)
+                                  )
+
+
 namespace lio_lite {
 
-enum class LidarType { AVIA = 1, VELO32, OUST64 };
+enum class LidarType { AVIA = 1, VELO32, OUST64, HESAI16};
 
 /**
  * point cloud preprocess
@@ -87,6 +107,7 @@ class PointCloudPreprocess {
     void AviaHandler(const livox_ros_driver::CustomMsg::ConstPtr &msg);
     void Oust64Handler(const sensor_msgs::PointCloud2::ConstPtr &msg);
     void VelodyneHandler(const sensor_msgs::PointCloud2::ConstPtr &msg);
+    void HesaiHandler(const sensor_msgs::PointCloud2::ConstPtr&);
 
     PointCloudType cloud_full_, cloud_out_;
 
