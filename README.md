@@ -66,3 +66,5 @@ rosrun lio_lite test_load
 
 ![SplitMap](https://github.com/Liansheng-Wang/LIO-Lite/blob/eskf-base/doc/split_map.png)
 
+### 2023-11-22
+Added the use of gravity as a constraint to define the horizontal plane during the initialization phase.

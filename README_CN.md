@@ -61,3 +61,5 @@ rosrun lio_lite test_load
 ```
 ![SplitMap](https://github.com/Liansheng-Wang/LIO-Lite/blob/eskf-base/doc/split_map.png)
 
+### 2023-11-22
+增加了在初始化阶段以重力为约束定义水平面.  
