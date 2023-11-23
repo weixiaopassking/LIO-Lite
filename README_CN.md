@@ -63,3 +63,7 @@ rosrun lio_lite test_load
 
 ### 2023-11-22
 增加了在初始化阶段以重力为约束定义水平面.  
+
+### 2023-11-23
+测试了 HesaiXT-16 雷达.
+![HesaiTX16](https://github.com/Liansheng-Wang/LIO-Lite/blob/eskf-base/doc/HesaiXT16.png)

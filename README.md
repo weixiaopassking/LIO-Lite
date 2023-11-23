@@ -68,3 +68,7 @@ rosrun lio_lite test_load
 
 ### 2023-11-22
 Added the use of gravity as a constraint to define the horizontal plane during the initialization phase.
+
+### 2023-11-23
+Test HesaiXT-16 Lidar.
+![HesaiTX16](https://github.com/Liansheng-Wang/LIO-Lite/blob/eskf-base/doc/HesaiXT16.png)
