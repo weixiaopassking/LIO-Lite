@@ -322,7 +322,13 @@ void LaserMapping::Run() {
 
     /// the first scan
     if (flg_first_scan_) {
-        ivox_->AddPoints(scan_undistort_->points);
+        CloudPtr first_scan(new PointCloudType);
+        first_scan->resize(scan_undistort_->size());
+        size_t cur_size = scan_undistort_->size();
+        for (int i = 0; i < cur_size; i++) {
+            PointBodyToWorld(&scan_undistort_->points[i], &first_scan->points[i]);
+        }
+        ivox_->AddPoints(first_scan->points);
         first_lidar_time_ = measures_.lidar_bag_time_;
         flg_first_scan_ = false;
         return;
