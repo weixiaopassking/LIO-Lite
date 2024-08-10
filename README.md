@@ -72,3 +72,9 @@ Added the use of gravity as a constraint to define the horizontal plane during t
 ### 2023-11-23
 Test HesaiXT-16 Lidar.
 ![HesaiTX16](https://github.com/Liansheng-Wang/LIO-Lite/blob/eskf-base/doc/HesaiXT16.png)
+
+### 2024-01-19
+Added visual color rendering. Refer to [R3Live](https://github.com/hku-mars/r3live.git)
+Created a new code in [LIO-Lite-Vison](https://github.com/Liansheng-Wang/LIO-Lite-Vison.git)
+![VisualRender](https://github.com/Liansheng-Wang/LIO-Lite-Vison/blob/main/doc/e6.png)
+
